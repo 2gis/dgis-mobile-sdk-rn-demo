@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Typecheck & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+      - run: ./gradlew assembleDebug --no-daemon
+        working-directory: android
+
+  ios:
+    name: iOS build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - run: bundle exec pod install
+        working-directory: ios
+      # dgissdk.key is bound to an application id and git-ignored (see
+      # README#SDK-key); CI only compiles, it never launches the app, so a
+      # placeholder satisfies the Xcode Copy Bundle Resources phase.
+      - run: echo placeholder > ios/DgisSdkDemo/dgissdk.key
+      # The vendor SDK ships arm64-only simulator slices (no Intel
+      # simulator support), so exclude x86_64 or the link step fails.
+      - run: |
+          xcodebuild \
+            -workspace ios/DgisSdkDemo.xcworkspace \
+            -scheme DgisSdkDemo \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            EXCLUDED_ARCHS=x86_64 \
+            build
