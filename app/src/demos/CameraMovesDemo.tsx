@@ -12,13 +12,13 @@ import {
   MyLocationMapObjectSource,
   Tilt,
   Zoom,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   Camera as SdkCamera,
   Location,
   Map as SdkMap,
   MapController,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 import { useSdk } from '../sdk/useSdk';
 import { useChannelEffect } from '../hooks/useChannelEffect';

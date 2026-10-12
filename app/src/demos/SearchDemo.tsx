@@ -14,14 +14,14 @@ import {
   SearchQueryBuilder,
   SuggestHandlerKind,
   SuggestQueryBuilder,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   DirectoryObject,
   Page,
   SearchQuery,
   Suggest,
   SuggestQuery,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useNative } from '../hooks/useNative';
 import { useLatestFuture } from '../hooks/useLatestFuture';

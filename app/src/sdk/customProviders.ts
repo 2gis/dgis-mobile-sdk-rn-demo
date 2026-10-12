@@ -8,7 +8,7 @@ import {
   LocationCourse,
   Longitude,
   PlatformHeading,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   DesiredAccuracy,
   HeadingAvailableNotifier,
@@ -17,7 +17,7 @@ import type {
   LocationAvailableNotifier,
   LocationNotifier,
   LocationProvider,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 type Disposable<T> = T & {
   dispose(): void;

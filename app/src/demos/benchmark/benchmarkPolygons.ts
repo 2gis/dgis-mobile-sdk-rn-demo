@@ -3,7 +3,7 @@ import {
   GeoPoint,
   LogicalPixel,
   PolygonOptions,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 export const BENCHMARK_POLYGONS: PolygonOptions[] = [
   new PolygonOptions({

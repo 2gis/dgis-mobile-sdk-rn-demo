@@ -7,8 +7,8 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { DGis } from '@2gis/dgis-mobile-sdk-map';
-import type { Context } from '@2gis/dgis-mobile-sdk-map';
+import { DGis } from '@2gis/dgis-mobile-sdk-full';
+import type { Context } from '@2gis/dgis-mobile-sdk-full';
 import {
   createHttpOptionsFromSettings,
   createLogOptionsFromSettings,

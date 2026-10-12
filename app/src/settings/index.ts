@@ -21,6 +21,8 @@ import {
   type LogOptionsSettings,
 } from './logOptionsSettings';
 import {
+  bundledCustomStyleAssetPath,
+  createDgisSourceWorkingModeFromSettings,
   createGraphicsPresetFromSettings,
   createMapAppearance,
   createMapAppearanceFromSettings,
@@ -29,10 +31,13 @@ import {
   getMapAppearanceLoadingBackground,
   normalizeMapSettings,
   readStoredMapSettings,
+  resolveMapStyleFilePath,
   sdkMapGraphicsPresetOptions,
+  sdkMapModeOptions,
   sdkMapThemeModes,
   type MapGraphicsPresetMode,
   type MapSettings,
+  type MapSourceMode,
   type MapThemeMode,
 } from './mapSettings';
 import { isObjectRecord } from './utils';
@@ -95,6 +100,8 @@ export function validateSdkSettings(settings: SdkSettings): string | null {
 }
 
 export {
+  bundledCustomStyleAssetPath,
+  createDgisSourceWorkingModeFromSettings,
   createGraphicsPresetFromSettings,
   createMapAppearance,
   createMapAppearanceFromSettings,
@@ -102,7 +109,9 @@ export {
   createHttpOptionsFromSettings,
   createLogOptionsFromSettings,
   getMapAppearanceLoadingBackground,
+  resolveMapStyleFilePath,
   sdkMapGraphicsPresetOptions,
+  sdkMapModeOptions,
   sdkMapThemeModes,
   sdkLogLevels,
 };
@@ -113,5 +122,6 @@ export type {
   LogOptionsSettings,
   MapGraphicsPresetMode,
   MapSettings,
+  MapSourceMode,
   MapThemeMode,
 };

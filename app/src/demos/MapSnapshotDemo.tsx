@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Alignment, MapView } from '@2gis/dgis-mobile-sdk-map';
-import type { MapRenderer } from '@2gis/dgis-mobile-sdk-map';
+import { Alignment, MapView } from '@2gis/dgis-mobile-sdk-full';
+import type { MapRenderer } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';

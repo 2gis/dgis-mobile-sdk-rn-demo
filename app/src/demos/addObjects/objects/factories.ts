@@ -17,12 +17,12 @@ import {
   Polyline,
   PolylineOptions,
   ZIndex,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   GeoPoint,
   Image as SdkImage,
   ModelData as SdkModelData,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   CircleSettings,
   MarkerSettings,

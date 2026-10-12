@@ -6,21 +6,24 @@ import { CalcPositionDemo } from '../demos/CalcPositionDemo';
 import { CameraMovesDemo } from '../demos/CameraMovesDemo';
 import { ClusteringDemo } from '../demos/ClusteringDemo';
 import { CopyrightDemo } from '../demos/CopyrightDemo';
+import { CustomStyleLoadDemo } from '../demos/CustomStyleLoadDemo';
+import { DownloadTerritoriesDemo } from '../demos/DownloadTerritoriesDemo';
 import { FpsDemo } from '../demos/FpsDemo';
 import { MapAppearanceDemo } from '../demos/MapAppearanceDemo';
 import { MapGesturesDemo } from '../demos/MapGesturesDemo';
 import { MapObjectsIdentificationDemo } from '../demos/MapObjectsIdentificationDemo';
 import { MapSnapshotDemo } from '../demos/MapSnapshotDemo';
 import { MapDemo } from '../demos/MapDemo';
+import { NavigationViewDemo } from '../demos/NavigationViewDemo';
 import { RecyclerViewDemo } from '../demos/RecyclerViewDemo';
 import { SearchDemo } from '../demos/SearchDemo';
 import { TextureViewDemo } from '../demos/TextureViewDemo';
 import { TwoMapsDemo } from '../demos/TwoMapsDemo';
 import { MapControlsDemo } from '../demos/MapControlsDemo';
 
-export type TabCategory = 'map' | 'directory';
+export type TabCategory = 'navigation' | 'map' | 'directory';
 
-export const TAB_CATEGORIES: TabCategory[] = ['map', 'directory'];
+export const TAB_CATEGORIES: TabCategory[] = ['navigation', 'map', 'directory'];
 
 export interface Demo {
   // Route name, must be unique. Also shown as the screen header title.
@@ -30,6 +33,8 @@ export interface Demo {
   component: ComponentType;
   // Which tab this demo belongs to.
   category: TabCategory;
+  // Lets map-based demos render beneath the side safe areas.
+  edgeToEdge?: boolean;
 }
 
 // Adding a demo: create its component and append one entry here. The catalog and
@@ -90,6 +95,18 @@ export const demos: Demo[] = [
     category: 'map',
   },
   {
+    name: 'Custom style load',
+    subtitle: 'Load custom_styles.2gis at map startup',
+    component: CustomStyleLoadDemo,
+    category: 'map',
+  },
+  {
+    name: 'Download territories',
+    subtitle: 'Filter by all/position/viewport and manage packages',
+    component: DownloadTerritoriesDemo,
+    category: 'map',
+  },
+  {
     name: 'Fps',
     subtitle: 'Realtime FPS monitor with animated camera controller',
     component: FpsDemo,
@@ -142,5 +159,13 @@ export const demos: Demo[] = [
     subtitle: 'Multiple maps in a scrollable list (TextureView)',
     component: RecyclerViewDemo,
     category: 'map',
+  },
+  {
+    name: 'Navigation view',
+    subtitle:
+      'Long tap start/finish, simulate the drive, NavigationView on top',
+    component: NavigationViewDemo,
+    category: 'navigation',
+    edgeToEdge: true,
   },
 ];

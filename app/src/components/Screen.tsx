@@ -15,30 +15,47 @@ interface ScreenProps {
   title: string;
   onBack?: () => void;
   rightAction?: React.ReactNode;
+  contentEdgeToEdge?: boolean;
   children: React.ReactNode;
 }
 
-const safeAreaEdges: Edge[] =
+const headerSafeAreaEdges: Edge[] =
   Platform.OS === 'ios' ? ['top', 'left', 'right'] : ['left', 'right'];
+const contentSafeAreaEdges: Edge[] = ['left', 'right'];
 
 // Shared screen chrome: dark header with a title and an optional back button.
-export function Screen({ title, onBack, rightAction, children }: ScreenProps) {
+export function Screen({
+  title,
+  onBack,
+  rightAction,
+  contentEdgeToEdge = false,
+  children,
+}: ScreenProps) {
   return (
-    <SafeAreaView style={styles.container} edges={safeAreaEdges}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.header} />
-      <View style={styles.header}>
-        <View style={styles.headerMain}>
-          {onBack && (
-            <TouchableOpacity onPress={onBack} style={styles.back}>
-              <Text style={styles.backText}>←</Text>
-            </TouchableOpacity>
+      <SafeAreaView style={styles.headerSafeArea} edges={headerSafeAreaEdges}>
+        <View style={styles.header}>
+          <View style={styles.headerMain}>
+            {onBack && (
+              <TouchableOpacity onPress={onBack} style={styles.back}>
+                <Text style={styles.backText}>←</Text>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.title}>{title}</Text>
+          </View>
+          {rightAction && (
+            <View style={styles.headerAction}>{rightAction}</View>
           )}
-          <Text style={styles.title}>{title}</Text>
         </View>
-        {rightAction && <View style={styles.headerAction}>{rightAction}</View>}
-      </View>
-      <View style={styles.content}>{children}</View>
-    </SafeAreaView>
+      </SafeAreaView>
+      <SafeAreaView
+        style={styles.content}
+        edges={contentEdgeToEdge ? [] : contentSafeAreaEdges}
+      >
+        {children}
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -46,6 +63,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  headerSafeArea: {
+    backgroundColor: colors.header,
   },
   header: {
     backgroundColor: colors.header,

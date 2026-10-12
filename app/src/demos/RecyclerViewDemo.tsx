@@ -8,14 +8,19 @@ import {
   MapControllerOptions,
   MapView,
   readyMapController,
-} from '@2gis/dgis-mobile-sdk-map';
-import type { Context, Map as SdkMap, Source } from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
+import type {
+  Context,
+  Map as SdkMap,
+  Source,
+} from '@2gis/dgis-mobile-sdk-full';
 import {
   useDefaultMapAppearance,
   useDefaultMapSettings,
 } from '../hooks/useDefaultMapOptions';
 import { useSdk } from '../sdk/useSdk';
 import {
+  createDgisSourceWorkingModeFromSettings,
   createGraphicsPresetFromSettings,
   createMapStyleFileFromSettings,
 } from '../settings';
@@ -83,6 +88,8 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
   const [controller, setController] = useState<MapController | null>(null);
   const mapSettings = useDefaultMapSettings();
   const mapAppearance = useDefaultMapAppearance();
+  const sourceWorkingMode =
+    createDgisSourceWorkingModeFromSettings(mapSettings);
   const graphicsPreset = createGraphicsPresetFromSettings(mapSettings);
   const styleFile = useMemo(
     () => createMapStyleFileFromSettings(mapSettings),
@@ -94,7 +101,7 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
     let cancelled = false;
     let ctrl: MapController | null = null;
     const sources: Source[] = [
-      DgisSource.createDgisSource(context),
+      DgisSource.createDgisSource(context, sourceWorkingMode),
       DgisSource.createImmersiveDgisSource(context),
     ];
     const future = MapController.create(
@@ -131,7 +138,7 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
     };
     // state.position is the initial position; camera updates happen below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [context, graphicsPreset, mapAppearance, styleFile]);
+  }, [context, graphicsPreset, mapAppearance, sourceWorkingMode, styleFile]);
 
   // When the state changes (cell recycled), move the camera.
   const prevStateRef = useRef(state);

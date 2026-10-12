@@ -1,36 +1,49 @@
 import {
   BySystem,
+  DgisSourceWorkingMode,
   File as SdkFile,
   Fixed,
   GraphicsPreset,
   MapAppearance,
   MapAppearanceKind,
   MapTheme,
-} from '@2gis/dgis-mobile-sdk-map';
-import type { Color } from '@2gis/dgis-mobile-sdk-map';
+  copyAppAssetToFile,
+} from '@2gis/dgis-mobile-sdk-full';
+import type { Color } from '@2gis/dgis-mobile-sdk-full';
 import type { ColorSchemeName } from 'react-native';
 
 import { isObjectRecord } from './utils';
 
 export type MapThemeMode = 'system' | 'light' | 'dark';
+export type MapSourceMode = 'online' | 'offline' | 'hybrid';
 export type MapGraphicsPresetMode = 'light' | 'normal' | 'immersive';
 
 export interface MapSettings {
   theme: MapThemeMode;
+  mode: MapSourceMode;
   graphicsPreset: MapGraphicsPresetMode;
   styleFilePath: string;
 }
 
 export const defaultMapSettings: MapSettings = {
   theme: 'system',
+  mode: 'hybrid',
   graphicsPreset: 'immersive',
   styleFilePath: '',
 };
+
+export const bundledCustomStyleAssetPath = 'map/custom_styles.2gis';
 
 export const sdkMapThemeModes = [
   { value: 'system', label: 'System' },
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
+] as const;
+
+export const sdkMapModeOptions = [
+  { value: 'online', label: 'Online' },
+  { value: 'offline', label: 'Offline' },
+  { value: 'hybrid', label: 'Hybrid' },
 ] as const;
 
 export const sdkMapGraphicsPresetOptions = [
@@ -40,6 +53,7 @@ export const sdkMapGraphicsPresetOptions = [
 ] as const;
 
 const mapThemeModeValues = sdkMapThemeModes.map(mode => mode.value);
+const mapSourceModeValues = sdkMapModeOptions.map(mode => mode.value);
 const mapGraphicsPresetValues = sdkMapGraphicsPresetOptions.map(
   preset => preset.value,
 );
@@ -55,6 +69,11 @@ export function readStoredMapSettings(
 
   return normalizeMapSettings({
     theme: getStoredMapThemeMode(record, legacyThemeRecord),
+    mode: isMapSourceMode(record.mode)
+      ? record.mode
+      : isMapSourceMode(record.mapMode)
+      ? record.mapMode
+      : defaultMapSettings.mode,
     graphicsPreset: isMapGraphicsPresetMode(record.graphicsPreset)
       ? record.graphicsPreset
       : isMapGraphicsPresetMode(record.mapGraphicsPreset)
@@ -74,6 +93,9 @@ export function normalizeMapSettings(settings: MapSettings): MapSettings {
     theme: isMapThemeMode(settings.theme)
       ? settings.theme
       : defaultMapSettings.theme,
+    mode: isMapSourceMode(settings.mode)
+      ? settings.mode
+      : defaultMapSettings.mode,
     graphicsPreset: isMapGraphicsPresetMode(settings.graphicsPreset)
       ? settings.graphicsPreset
       : defaultMapSettings.graphicsPreset,
@@ -106,6 +128,19 @@ export function createMapAppearance(mode: MapThemeMode): MapAppearance {
   }
 }
 
+export function createDgisSourceWorkingModeFromSettings(
+  settings: MapSettings,
+): DgisSourceWorkingMode {
+  switch (settings.mode) {
+    case 'online':
+      return DgisSourceWorkingMode.Online;
+    case 'offline':
+      return DgisSourceWorkingMode.Offline;
+    case 'hybrid':
+      return DgisSourceWorkingMode.HybridOnlineFirst;
+  }
+}
+
 export function createGraphicsPresetFromSettings(
   settings: MapSettings,
 ): GraphicsPreset {
@@ -125,6 +160,16 @@ export function createMapStyleFileFromSettings(
   const styleFilePath = normalizeStyleFilePath(settings.styleFilePath);
 
   return styleFilePath ? new SdkFile(styleFilePath) : null;
+}
+
+export async function resolveMapStyleFilePath(path: string): Promise<string> {
+  const normalized = normalizeStyleFilePath(path);
+
+  if (!normalized || !isAppAssetStyleFilePath(normalized)) {
+    return normalized;
+  }
+
+  return copyAppAssetToFile(normalized);
 }
 
 export function getMapAppearanceLoadingBackground(
@@ -171,6 +216,13 @@ function isMapThemeMode(value: unknown): value is MapThemeMode {
   );
 }
 
+function isMapSourceMode(value: unknown): value is MapSourceMode {
+  return (
+    typeof value === 'string' &&
+    mapSourceModeValues.includes(value as MapSourceMode)
+  );
+}
+
 function isMapGraphicsPresetMode(
   value: unknown,
 ): value is MapGraphicsPresetMode {
@@ -179,6 +231,9 @@ function isMapGraphicsPresetMode(
     mapGraphicsPresetValues.includes(value as MapGraphicsPresetMode)
   );
 }
+
+const URI_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i;
+const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[a-z]:[\\/]/i;
 
 function normalizeStyleFilePath(path: string): string {
   const trimmed = path.trim();
@@ -192,4 +247,12 @@ function normalizeStyleFilePath(path: string): string {
   }
 
   return trimmed;
+}
+
+function isAppAssetStyleFilePath(path: string): boolean {
+  return (
+    !path.startsWith('/') &&
+    !WINDOWS_ABSOLUTE_PATH_PATTERN.test(path) &&
+    !URI_SCHEME_PATTERN.test(path)
+  );
 }

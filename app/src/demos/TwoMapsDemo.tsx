@@ -3,20 +3,26 @@ import { StyleSheet, Text, View } from 'react-native';
 import {
   CameraPosition,
   DgisSource,
+  DgisSourceWorkingMode,
   Fps,
   GeoPoint,
   MapController,
   MapControllerOptions,
   MapView,
   readyMapController,
-} from '@2gis/dgis-mobile-sdk-map';
-import type { Context, Map as SdkMap, Source } from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
+import type {
+  Context,
+  Map as SdkMap,
+  Source,
+} from '@2gis/dgis-mobile-sdk-full';
 import {
   useDefaultMapAppearance,
   useDefaultMapSettings,
 } from '../hooks/useDefaultMapOptions';
 import { useSdk } from '../sdk/useSdk';
 import {
+  createDgisSourceWorkingModeFromSettings,
   createGraphicsPresetFromSettings,
   createMapStyleFileFromSettings,
 } from '../settings';
@@ -42,9 +48,12 @@ const FONT_ICON_SIZE_MULTIPLIER = 1.5;
 const MAX_FPS = new Fps({ value: 60 });
 const POWER_SAVING_MAX_FPS = new Fps({ value: 30 });
 
-function makeSources(context: Context): Source[] {
+function makeSources(
+  context: Context,
+  workingMode: DgisSourceWorkingMode,
+): Source[] {
   return [
-    DgisSource.createDgisSource(context),
+    DgisSource.createDgisSource(context, workingMode),
     DgisSource.createImmersiveDgisSource(context),
   ];
 }
@@ -65,6 +74,8 @@ export function TwoMapsDemo() {
   const context = useSdk();
   const mapSettings = useDefaultMapSettings();
   const mapAppearance = useDefaultMapAppearance();
+  const sourceWorkingMode =
+    createDgisSourceWorkingModeFromSettings(mapSettings);
   const graphicsPreset = createGraphicsPresetFromSettings(mapSettings);
   const styleFile = useMemo(
     () => createMapStyleFileFromSettings(mapSettings),
@@ -79,7 +90,7 @@ export function TwoMapsDemo() {
     let cancelled = false;
     let optionsCtrl: MapController | null = null;
     let incrementalCtrl: MapController | null = null;
-    const optionsSources = makeSources(context);
+    const optionsSources = makeSources(context, sourceWorkingMode);
     const incrementalSources: Source[] = [];
 
     const optionsFuture = MapController.create(
@@ -124,7 +135,7 @@ export function TwoMapsDemo() {
         withControllerMap(created, map => {
           map.appearance = mapAppearance;
           map.graphicsPreset = graphicsPreset;
-          for (const source of makeSources(context)) {
+          for (const source of makeSources(context, sourceWorkingMode)) {
             incrementalSources.push(source);
             map.addSource(source);
           }
@@ -152,7 +163,7 @@ export function TwoMapsDemo() {
       destroyAll(optionsSources);
       destroyAll(incrementalSources);
     };
-  }, [context, graphicsPreset, mapAppearance, styleFile]);
+  }, [context, graphicsPreset, mapAppearance, sourceWorkingMode, styleFile]);
 
   return (
     <View style={styles.container}>

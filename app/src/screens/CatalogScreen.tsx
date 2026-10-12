@@ -15,6 +15,7 @@ interface CatalogScreenProps {
 }
 
 const TAB_LABELS: Record<TabCategory, string> = {
+  navigation: 'Navigation',
   map: 'Map',
   directory: 'Directory',
 };

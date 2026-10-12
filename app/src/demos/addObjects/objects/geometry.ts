@@ -1,10 +1,10 @@
-import { ScreenPoint } from '@2gis/dgis-mobile-sdk-map';
+import { ScreenPoint } from '@2gis/dgis-mobile-sdk-full';
 import type {
   Camera as SdkCamera,
   GeoPoint,
   Map as SdkMap,
   Projection as SdkProjection,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { destroyIfPresent } from '../../demoNativeCleanup';
 
 export function withCamera<T>(

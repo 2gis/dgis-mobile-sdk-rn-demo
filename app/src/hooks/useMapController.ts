@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
-import { useMapController as useSdkMapController } from '@2gis/dgis-mobile-sdk-map';
+import { useMapController as useSdkMapController } from '@2gis/dgis-mobile-sdk-full';
 import type {
   Context,
   MapController,
   MapControllerOptions,
   MapControllerState,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import {
   destroyIfPresent,
   ignoreNativeDestroyedError,

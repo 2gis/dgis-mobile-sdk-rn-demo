@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LocationService } from '@2gis/dgis-mobile-sdk-map';
+import { LocationService } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { checkLocationPermissions } from '../sdk/locationPermissions';
 

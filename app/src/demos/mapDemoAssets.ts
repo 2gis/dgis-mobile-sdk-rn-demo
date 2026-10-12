@@ -3,7 +3,7 @@ import type {
   ImageLoader,
   ModelData,
   ModelLoader,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 export const scooterMarkerAsset = 'map/scooter_model.png';
 export const bridgeMarkerAsset = 'map/bridge.svg';
@@ -11,9 +11,12 @@ export const batMarkerAsset = 'map/bat.json';
 export const circleMarkerAsset = 'map/circle.png';
 export const clusterMarkerAsset = 'map/icon_circle.png';
 export const pinMarkerAsset = 'map/pin.png';
+export const navigationStartMarkerAsset = 'map/navigation_start.svg';
+export const navigationFinishMarkerAsset = 'map/navigation_finish.svg';
 export const airplaneModelAsset = 'map/airplane.glb';
 
 export type DemoMarkerType = 'scooterPng' | 'bridgeSvg' | 'batLottie';
+export type NavigationPointMarkerType = 'start' | 'finish';
 
 export const DEMO_MARKER_TYPE_OPTIONS: readonly {
   readonly value: DemoMarkerType;
@@ -102,6 +105,18 @@ export async function loadPinMarkerImage(
 ): Promise<SdkImage> {
   return readCachedImage(cache, 'pin:160x160', () =>
     loader.loadPngFromAsset(pinMarkerAsset, 160, 160),
+  );
+}
+
+export async function loadNavigationPointMarkerImage(
+  loader: ImageLoader,
+  cache: DemoImageCache,
+  type: NavigationPointMarkerType,
+): Promise<SdkImage> {
+  const asset =
+    type === 'start' ? navigationStartMarkerAsset : navigationFinishMarkerAsset;
+  return readCachedImage(cache, `navigation:${type}`, () =>
+    loader.loadSVGFromAsset(asset),
   );
 }
 

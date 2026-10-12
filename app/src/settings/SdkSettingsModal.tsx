@@ -9,12 +9,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import type { LogLevel } from '@2gis/dgis-mobile-sdk-map';
+import type { LogLevel } from '@2gis/dgis-mobile-sdk-full';
 import { colors, radius, spacing, typography } from '../theme/theme';
 import { useSdkController } from '../sdk/SdkProvider';
 import {
+  bundledCustomStyleAssetPath,
   defaultSdkSettings,
+  resolveMapStyleFilePath,
   sdkMapGraphicsPresetOptions,
+  sdkMapModeOptions,
   sdkMapThemeModes,
   sdkLogLevels,
   validateSdkSettings,
@@ -23,6 +26,7 @@ import {
   type LogOptionsSettings,
   type MapGraphicsPresetMode,
   type MapSettings,
+  type MapSourceMode,
   type MapThemeMode,
   type SdkSettings,
 } from './index';
@@ -57,7 +61,16 @@ export function SdkSettingsModal({ onClose, visible }: SdkSettingsModalProps) {
     setIsSaving(true);
     setError(null);
     try {
-      await saveSettings(draft);
+      const styleFilePath = await resolveMapStyleFilePath(
+        draft.map.styleFilePath,
+      );
+      await saveSettings({
+        ...draft,
+        map: {
+          ...draft.map,
+          styleFilePath,
+        },
+      });
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -190,6 +203,12 @@ export function SdkSettingsModal({ onClose, visible }: SdkSettingsModalProps) {
                   value={draft.map.theme}
                   onChange={value => setMapDraftField(setDraft, 'theme', value)}
                 />
+                <EnumSelector<MapSourceMode>
+                  label="Mode"
+                  options={sdkMapModeOptions}
+                  value={draft.map.mode}
+                  onChange={value => setMapDraftField(setDraft, 'mode', value)}
+                />
                 <EnumSelector<MapGraphicsPresetMode>
                   label="GraphicPresets"
                   options={sdkMapGraphicsPresetOptions}
@@ -206,6 +225,30 @@ export function SdkSettingsModal({ onClose, visible }: SdkSettingsModalProps) {
                   }
                   keyboardType="default"
                 />
+                <View style={styles.inlineActions}>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={() =>
+                      setMapDraftField(
+                        setDraft,
+                        'styleFilePath',
+                        bundledCustomStyleAssetPath,
+                      )
+                    }
+                  >
+                    <Text style={styles.secondaryButtonText}>
+                      Use bundled style
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={() =>
+                      setMapDraftField(setDraft, 'styleFilePath', '')
+                    }
+                  >
+                    <Text style={styles.secondaryButtonText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
               </SettingsSection>
 
               <Text style={styles.note}>
@@ -554,5 +597,24 @@ const styles = StyleSheet.create({
   },
   primaryActionText: {
     color: colors.textInverse,
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  secondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    ...typography.label,
+    color: colors.textPrimary,
+    textAlign: 'center',
   },
 });

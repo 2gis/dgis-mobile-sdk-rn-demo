@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@2gis/dgis-mobile-sdk-map": "^14.1.0",
+    "@2gis/dgis-mobile-sdk-full": "^14.2.0",
     "@react-native-async-storage/async-storage": "^3.1.1",
     "react": "19.2.3",
     "react-native": "0.85.0",

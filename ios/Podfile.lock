@@ -1916,7 +1916,7 @@ PODS:
 
 DEPENDENCIES:
   - "AsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
-  - "dgis_mobile_sdk (from `../node_modules/@2gis/dgis-mobile-sdk-map`)"
+  - "dgis_mobile_sdk (from `../node_modules/@2gis/dgis-mobile-sdk-full`)"
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - hermes-engine (from `../node_modules/react-native/sdks/hermes-engine/hermes-engine.podspec`)
   - RCTDeprecation (from `../node_modules/react-native/ReactApple/Libraries/RCTFoundation/RCTDeprecation`)
@@ -2003,7 +2003,7 @@ EXTERNAL SOURCES:
   AsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
   dgis_mobile_sdk:
-    :path: "../node_modules/@2gis/dgis-mobile-sdk-map"
+    :path: "../node_modules/@2gis/dgis-mobile-sdk-full"
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
   hermes-engine:

@@ -38,7 +38,11 @@ export function Navigator() {
 
   const Demo = demo.component;
   return (
-    <Screen title={demo.name} onBack={() => setActive(null)}>
+    <Screen
+      title={demo.name}
+      onBack={() => setActive(null)}
+      contentEdgeToEdge={demo.edgeToEdge}
+    >
       <SdkDemoGate>
         <Demo />
       </SdkDemoGate>

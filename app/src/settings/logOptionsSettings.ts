@@ -1,4 +1,4 @@
-import { LogLevel, LogOptions, type LogSink } from '@2gis/dgis-mobile-sdk-map';
+import { LogLevel, LogOptions, type LogSink } from '@2gis/dgis-mobile-sdk-full';
 
 import { isBoolean, isObjectRecord } from './utils';
 

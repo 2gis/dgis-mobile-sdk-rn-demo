@@ -21,7 +21,7 @@ import {
   SearchManager,
   SimpleMapObject,
   Zoom,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   Attributes,
   DirectoryObject,
@@ -29,7 +29,7 @@ import type {
   MapController,
   MapRenderedObjectObserver,
   RenderedObjectInfo,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
@@ -268,7 +268,7 @@ export function MapObjectsIdentificationDemo() {
   }
 
   const searchManager = useNative(
-    () => SearchManager.createOnlineManager(context),
+    () => SearchManager.createSmartManager(context),
     [context],
   );
   const [showInfo, setShowInfo] = useState(true);

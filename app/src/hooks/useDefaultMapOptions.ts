@@ -5,11 +5,12 @@ import {
   DgisSource,
   GeoPoint,
   MapControllerOptions,
-} from '@2gis/dgis-mobile-sdk-map';
-import type { Color, Context, MapAppearance } from '@2gis/dgis-mobile-sdk-map';
-import type { Source } from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
+import type { Color, Context, MapAppearance } from '@2gis/dgis-mobile-sdk-full';
+import type { Source } from '@2gis/dgis-mobile-sdk-full';
 import { useSdkController } from '../sdk/SdkProvider';
 import {
+  createDgisSourceWorkingModeFromSettings,
   createGraphicsPresetFromSettings,
   createMapAppearanceFromSettings,
   createMapStyleFileFromSettings,
@@ -84,6 +85,10 @@ export function useDefaultMapOptions(
   config?: UseDefaultMapOptionsConfig,
 ): MapControllerOptions {
   const mapSettings = useDefaultMapSettings();
+  const sourceWorkingMode = useMemo(
+    () => createDgisSourceWorkingModeFromSettings(mapSettings),
+    [mapSettings],
+  );
   const graphicsPreset = useMemo(
     () => createGraphicsPresetFromSettings(mapSettings),
     [mapSettings],
@@ -103,7 +108,7 @@ export function useDefaultMapOptions(
     const ownedSources =
       overrideSources === undefined
         ? [
-            DgisSource.createDgisSource(context),
+            DgisSource.createDgisSource(context, sourceWorkingMode),
             DgisSource.createImmersiveDgisSource(context),
           ]
         : [];
@@ -119,7 +124,14 @@ export function useDefaultMapOptions(
       }),
       ownedSources,
     };
-  }, [context, graphicsPreset, mapAppearance, overrides, styleFile]);
+  }, [
+    context,
+    graphicsPreset,
+    mapAppearance,
+    overrides,
+    sourceWorkingMode,
+    styleFile,
+  ]);
 
   useEffect(() => {
     const { ownedSources } = mapOptionsState;

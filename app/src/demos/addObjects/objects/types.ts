@@ -1,4 +1,4 @@
-import type { ScreenPoint } from '@2gis/dgis-mobile-sdk-map';
+import type { ScreenPoint } from '@2gis/dgis-mobile-sdk-full';
 import type { DemoMarkerType } from '../../mapDemoAssets';
 
 export type DialogKind =

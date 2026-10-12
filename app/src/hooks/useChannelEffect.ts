@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { DependencyList } from 'react';
-import type { Channel } from '@2gis/dgis-mobile-sdk-map';
+import type { Channel } from '@2gis/dgis-mobile-sdk-full';
 
 // Runs a handler on each value from an SDK Channel — the side-effect counterpart of
 // useChannelValue. Resubscribes on deps change, disconnects on unmount.

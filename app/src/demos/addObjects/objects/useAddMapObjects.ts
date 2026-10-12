@@ -4,7 +4,7 @@ import {
   ImageLoader,
   MapObjectManager,
   ModelLoader,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   Context,
   Image as SdkImage,
@@ -13,7 +13,7 @@ import type {
   ModelData as SdkModelData,
   ScreenPoint,
   SimpleMapObject,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import {
   type DemoImageCache,
   loadAirplaneModel,

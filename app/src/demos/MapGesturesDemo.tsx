@@ -22,7 +22,7 @@ import {
   Marker,
   MarkerOptions,
   TransformGesture,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   Camera as SdkCamera,
   Connection,
@@ -32,7 +32,7 @@ import type {
   MapGestureRecognizer,
   Projection as SdkProjection,
   ScreenPoint,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';

@@ -5,7 +5,7 @@ import {
   MyLocationControllerSettings,
   MyLocationMapObjectMarkerType,
   MyLocationMapObjectSource,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';

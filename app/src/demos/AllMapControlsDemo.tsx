@@ -14,13 +14,13 @@ import {
   TrafficControlStatus,
   ZoomControlButton,
   ZoomControlModel,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   LocationQuality,
   Map as SdkMap,
   MapController,
   TrafficControlState,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 import { useSdk } from '../sdk/useSdk';
 import { useChannelValue } from '../hooks/useChannelValue';

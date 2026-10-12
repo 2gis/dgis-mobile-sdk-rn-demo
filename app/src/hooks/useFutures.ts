@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { Future } from '@2gis/dgis-mobile-sdk-map';
+import type { Future } from '@2gis/dgis-mobile-sdk-full';
 import { destroyIfPresent } from './nativeObjectLifecycle';
 
 // Owns launched Futures, tying them to the component's lifetime. Returns a stable run:

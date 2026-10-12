@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MapView } from '@2gis/dgis-mobile-sdk-map';
-import type { Map as SdkMap, MapController } from '@2gis/dgis-mobile-sdk-map';
+import { MapView } from '@2gis/dgis-mobile-sdk-full';
+import type { Map as SdkMap, MapController } from '@2gis/dgis-mobile-sdk-full';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useSdk } from '../sdk/useSdk';

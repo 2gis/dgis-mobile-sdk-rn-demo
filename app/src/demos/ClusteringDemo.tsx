@@ -22,7 +22,7 @@ import {
   GeoPointWithElevation,
   ZIndex,
   ImageLoader,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import type {
   Camera as SdkCamera,
   Image as SdkImage,
@@ -30,7 +30,7 @@ import type {
   Projection as SdkProjection,
   SimpleClusterObject,
   SimpleClusterRenderer,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';

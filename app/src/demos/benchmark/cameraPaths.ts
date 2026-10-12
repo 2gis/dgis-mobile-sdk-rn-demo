@@ -6,7 +6,7 @@ import {
   GeoPoint,
   Tilt,
   Zoom,
-} from '@2gis/dgis-mobile-sdk-map';
+} from '@2gis/dgis-mobile-sdk-full';
 
 export interface CameraStep {
   position: CameraPosition;
