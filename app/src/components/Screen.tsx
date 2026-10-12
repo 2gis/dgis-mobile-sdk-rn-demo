@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -19,8 +18,10 @@ interface ScreenProps {
   children: React.ReactNode;
 }
 
-const headerSafeAreaEdges: Edge[] =
-  Platform.OS === 'ios' ? ['top', 'left', 'right'] : ['left', 'right'];
+// Android 15+ (targetSdk 35+) enforces edge-to-edge: the status bar overlays
+// content and intercepts touches there, so the header must reserve the top
+// inset on both platforms or its back/action buttons become untappable.
+const headerSafeAreaEdges: Edge[] = ['top', 'left', 'right'];
 const contentSafeAreaEdges: Edge[] = ['left', 'right'];
 
 // Shared screen chrome: dark header with a title and an optional back button.
