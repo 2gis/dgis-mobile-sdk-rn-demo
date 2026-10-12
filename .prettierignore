@@ -1,1 +1,10 @@
+node_modules
+Pods
+build
+.gradle
+.cxx
+.kotlin
+*.xcassets
+coverage
+vendor
 app/src/assets
