@@ -20,8 +20,7 @@ import {
 export function MapDemo() {
   const context = useSdk();
 
-  // Инициализируем LocationService и запрашиваем permissions.
-  // Важно: hook вызывается на верхнем уровне компонента, не внутри if/useEffect/callback.
+  // Init LocationService and request permissions. Must be called at the top level, like any hook.
   useInitializeLocationService();
 
   const options = useDefaultMapOptions(context);
