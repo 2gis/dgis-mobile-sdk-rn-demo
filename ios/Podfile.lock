@@ -22,8 +22,6 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - dgis_mobile_sdk (1.0.0):
-    - React-Codegen
-    - React-Core
     - React-jsi
     - React-NativeModulesApple
     - ReactCommon/turbomodule/core
@@ -54,7 +52,6 @@ PODS:
     - React-RCTText (= 0.85.0)
     - React-RCTVibration (= 0.85.0)
   - React-callinvoker (0.85.0)
-  - React-Codegen (0.1.0)
   - React-Core (0.85.0):
     - hermes-engine
     - RCTDeprecation
@@ -1995,10 +1992,6 @@ DEPENDENCIES:
   - RNSVG (from `../node_modules/react-native-svg`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
-SPEC REPOS:
-  trunk:
-    - React-Codegen
-
 EXTERNAL SOURCES:
   AsyncStorage:
     :path: "../node_modules/@react-native-async-storage/async-storage"
@@ -2160,7 +2153,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   AsyncStorage: 163ab23f6aa37a58b7f2379d0b4ee7ac84d6655c
-  dgis_mobile_sdk: d47eb935e66cabd1562f63c60610749c3b48e699
+  dgis_mobile_sdk: 484c7a61d00ed5d78e41439f5e93263ddc4639e7
   FBLazyVector: c00c20551d40126351a6783c47ce75f5b374851b
   hermes-engine: 5f0d0af5225599fe4f2ecbe559f15dc86323efdf
   RCTDeprecation: 3bb167081b134461cfeb875ff7ae1945f8635257
@@ -2170,7 +2163,6 @@ SPEC CHECKSUMS:
   RCTTypeSafety: abdf2eaed5501a52f2000de668ccfc60b78c3b27
   React: 1b1536b9099195944034e65b1830f463caaa8390
   React-callinvoker: 6dff6d17d1d6cc8fdf85468a649bafed473c65f5
-  React-Codegen: 4b8b4817cea7a54b83851d4c1f91f79aa73de30a
   React-Core: 00faa4d038298089a1d5a5b21dde8660c4f0820d
   React-Core-prebuilt: 22441139481bf60114fcdd325382a101c41261bc
   React-CoreModules: a17807f849bfd86045b0b9a75ec8c19373b482f6
