@@ -14,38 +14,24 @@ import {
   View,
 } from 'react-native';
 import {
-  CameraPosition,
   GeometryMapObjectSourceBuilder,
-  GeoPoint,
   MapObjectManager,
   MapView,
   Polygon,
   parseGeoJson,
-  Zoom,
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
-  Camera as SdkCamera,
   Connection,
   Fps,
   Future,
   CameraAnimatedMoveResult,
-  GeometryMapObject,
   GeometryMapObjectSource,
-  Map as SdkMap,
   MapController,
-  MapRenderer,
 } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../../sdk/useSdk';
 import { useDefaultMapOptions } from '../../hooks/useDefaultMapOptions';
 import { useMapController } from '../../hooks/useMapController';
 import { colors, radius as themeRadius, spacing } from '../../theme/theme';
-import {
-  destroyAll,
-  destroyIfPresent,
-  ignoreNativeDestroyedError,
-  isNativeDestroyedError,
-  type Destroyable,
-} from '../demoNativeCleanup';
 import { CAMERA_PATHS } from './cameraPaths';
 import type { CameraPath, CameraPathEntry } from './cameraPaths';
 import { BENCHMARK_POLYGONS } from './benchmarkPolygons';
@@ -120,32 +106,6 @@ function useFpsAccumulator() {
 const GRAPH_HEIGHT = 100;
 const MAX_FPS = 120;
 
-interface MapObjectManagerResources {
-  manager: MapObjectManager;
-  map: SdkMap;
-}
-
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
-
-function withMapCamera<T>(map: SdkMap, action: (camera: SdkCamera) => T): T {
-  const camera = map.camera;
-  try {
-    return action(camera);
-  } finally {
-    destroyIfPresent(camera);
-  }
-}
-
 /**
  * FPS benchmark: runs predefined camera animation paths (with optional polygon
  * / GeoJSON objects on the map) and shows a real-time FPS graph with avg/p1/p0.1.
@@ -164,96 +124,50 @@ export function BenchmarkDemo() {
   } = useFpsAccumulator();
 
   const fpsConnectionRef = useRef<Connection | null>(null);
-  const rendererRef = useRef<MapRenderer | null>(null);
   const moveFutureRef = useRef<Future<CameraAnimatedMoveResult> | null>(null);
-  const mapObjectManagerRef = useRef<MapObjectManagerResources | null>(null);
-  const mapObjectsRef = useRef<Destroyable[]>([]);
+  const mapObjectManagerRef = useRef<MapObjectManager | null>(null);
   const geometrySourceRef = useRef<GeometryMapObjectSource | null>(null);
-  const geometryObjectsRef = useRef<GeometryMapObject[]>([]);
 
   const cleanupObjects = useCallback((controller: MapController) => {
-    const managerResources = mapObjectManagerRef.current;
-    if (managerResources) {
-      ignoreNativeDestroyedError(() => managerResources.manager.removeAll());
-      destroyAll(mapObjectsRef.current);
-      mapObjectsRef.current = [];
-      ignoreNativeDestroyedError(() =>
-        destroyIfPresent(managerResources.manager),
-      );
-      ignoreNativeDestroyedError(() => destroyIfPresent(managerResources.map));
-      mapObjectManagerRef.current = null;
-    }
-    if (geometrySourceRef.current) {
-      const source = geometrySourceRef.current;
-      ignoreNativeDestroyedError(() => source.clear());
-      ignoreNativeDestroyedError(() =>
-        withControllerMap(controller, map => map.removeSource(source)),
-      );
-      ignoreNativeDestroyedError(() => destroyIfPresent(source));
+    mapObjectManagerRef.current?.removeAll();
+    mapObjectManagerRef.current = null;
+    const source = geometrySourceRef.current;
+    if (source) {
+      source.clear();
+      controller.map.removeSource(source);
       geometrySourceRef.current = null;
     }
-    destroyAll(geometryObjectsRef.current);
-    geometryObjectsRef.current = [];
   }, []);
 
   const stopFpsTracking = useCallback(() => {
     fpsConnectionRef.current?.disconnect();
     fpsConnectionRef.current = null;
-    ignoreNativeDestroyedError(() => destroyIfPresent(rendererRef.current));
-    rendererRef.current = null;
     stopFps();
   }, [stopFps]);
 
-  const destroyCurrentMove = useCallback(() => {
-    destroyIfPresent(moveFutureRef.current);
+  const cancelCurrentMove = useCallback(() => {
+    moveFutureRef.current?.cancel();
     moveFutureRef.current = null;
   }, []);
 
   useEffect(() => {
     return () => {
       stopFpsTracking();
-      destroyCurrentMove();
+      cancelCurrentMove();
       if (mapController) {
         cleanupObjects(mapController);
-      } else {
-        const managerResources = mapObjectManagerRef.current;
-        if (managerResources) {
-          ignoreNativeDestroyedError(() =>
-            managerResources.manager.removeAll(),
-          );
-          ignoreNativeDestroyedError(() =>
-            destroyIfPresent(managerResources.manager),
-          );
-          ignoreNativeDestroyedError(() =>
-            destroyIfPresent(managerResources.map),
-          );
-        }
-        destroyAll(mapObjectsRef.current);
-        mapObjectsRef.current = [];
-        mapObjectManagerRef.current = null;
-        ignoreNativeDestroyedError(() => geometrySourceRef.current?.clear());
-        ignoreNativeDestroyedError(() =>
-          destroyIfPresent(geometrySourceRef.current),
-        );
-        geometrySourceRef.current = null;
-        destroyAll(geometryObjectsRef.current);
-        geometryObjectsRef.current = [];
       }
     };
-  }, [cleanupObjects, destroyCurrentMove, mapController, stopFpsTracking]);
+  }, [cleanupObjects, cancelCurrentMove, mapController, stopFpsTracking]);
 
   const startFpsTracking = useCallback(
     (controller: MapController) => {
       fpsConnectionRef.current?.disconnect();
-      ignoreNativeDestroyedError(() => destroyIfPresent(rendererRef.current));
-      rendererRef.current = null;
       startFps();
 
-      const renderer = controller.renderer;
-      rendererRef.current = renderer;
-      const channel = renderer.fpsChannel;
+      const channel = controller.renderer.fpsChannel;
       fpsConnectionRef.current = channel.subscribe((v: Fps) => {
-        pushFps(v.value);
+        pushFps(v);
       });
     },
     [pushFps, startFps],
@@ -267,35 +181,23 @@ export function BenchmarkDemo() {
         return;
       }
       const { position, duration, animationType } = path[index]!;
-      let future: Future<CameraAnimatedMoveResult>;
-      try {
-        future = withControllerMap(controller, map =>
-          withMapCamera(map, camera =>
-            camera.moveToCameraPosition(position, duration, animationType),
-          ),
-        );
-      } catch (error) {
-        if (isNativeDestroyedError(error)) {
-          stopFpsTracking();
-          setRunning(false);
-          return;
-        }
-        throw error;
-      }
+      const future = controller.map.camera.moveToCameraPosition(
+        position,
+        duration,
+        animationType,
+      );
       moveFutureRef.current = future;
       future.onComplete(
         () => {
           if (moveFutureRef.current === future) {
             moveFutureRef.current = null;
           }
-          destroyIfPresent(future);
           moveSequentially(controller, path, index + 1);
         },
         () => {
           if (moveFutureRef.current === future) {
             moveFutureRef.current = null;
           }
-          destroyIfPresent(future);
           stopFpsTracking();
           setRunning(false);
         },
@@ -311,50 +213,40 @@ export function BenchmarkDemo() {
       setRunning(true);
 
       stopFpsTracking();
-      destroyCurrentMove();
+      cancelCurrentMove();
       cleanupObjects(mapController);
 
       try {
-        withControllerMap(mapController, map =>
-          withMapCamera(map, camera => {
-            camera.position = new CameraPosition({
-              point: new GeoPoint({
-                latitude: path[0]!.position.point.latitude,
-                longitude: path[0]!.position.point.longitude,
-              }),
-              zoom: new Zoom({ value: 13 }),
-            });
-          }),
-        );
+        mapController.map.camera.position = {
+          point: {
+            latitude: path[0]!.position.point.latitude,
+            longitude: path[0]!.position.point.longitude,
+          },
+          zoom: 13,
+        };
 
         if (label === 'Polygons') {
           const map = mapController.map;
           const manager = new MapObjectManager(map, null);
-          mapObjectManagerRef.current = { manager, map };
-          const polygons = BENCHMARK_POLYGONS.map(opts => new Polygon(opts));
-          mapObjectsRef.current = polygons;
-          manager.addObjects(polygons);
+          mapObjectManagerRef.current = manager;
+          manager.addObjects(BENCHMARK_POLYGONS.map(opts => new Polygon(opts)));
         } else if (label === 'Moscow GeoJson') {
-          const sourceBuilder = new GeometryMapObjectSourceBuilder(context);
-          const source = sourceBuilder.createSource();
-          destroyIfPresent(sourceBuilder);
+          const source = new GeometryMapObjectSourceBuilder(
+            context,
+          ).createSource();
           geometrySourceRef.current = source;
-          withControllerMap(mapController, map => map.addSource(source));
-          const geoObjects = parseGeoJson(JSON.stringify(moscowGeoJsonRaw));
-          geometryObjectsRef.current = geoObjects;
-          source.addObjects(geoObjects);
+          mapController.map.addSource(source);
+          source.addObjects(parseGeoJson(JSON.stringify(moscowGeoJsonRaw)));
         }
 
         startFpsTracking(mapController);
         moveSequentially(mapController, path, 0);
       } catch (error) {
         stopFpsTracking();
-        destroyCurrentMove();
+        cancelCurrentMove();
         cleanupObjects(mapController);
         setRunning(false);
-        if (!isNativeDestroyedError(error)) {
-          throw error;
-        }
+        throw error;
       }
     },
     [
@@ -362,7 +254,7 @@ export function BenchmarkDemo() {
       running,
       context,
       cleanupObjects,
-      destroyCurrentMove,
+      cancelCurrentMove,
       startFpsTracking,
       stopFpsTracking,
       moveSequentially,

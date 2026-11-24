@@ -1,5 +1,11 @@
-import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  BackHandler,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from 'react-native';
 import { Screen } from '../components/Screen';
 import { CatalogScreen } from '../screens/CatalogScreen';
 import { colors, spacing } from '../theme/theme';
@@ -13,6 +19,26 @@ export function Navigator() {
   const [active, setActive] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const demo = demos.find(d => d.name === active);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        if (!demo) {
+          return false;
+        }
+
+        setActive(null);
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [demo]);
 
   if (!demo) {
     return (

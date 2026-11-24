@@ -8,12 +8,9 @@ import {
   View,
 } from 'react-native';
 import { Alignment, MapView } from '@2gis/dgis-mobile-sdk-full';
-import type { MapRenderer } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
-import { useLatestFuture } from '../hooks/useLatestFuture';
-import { useNative } from '../hooks/useNative';
 import {
   colors,
   radius as themeRadius,
@@ -26,15 +23,11 @@ export function MapSnapshotDemo() {
   const context = useSdk();
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
-  const renderer = useNative<MapRenderer>(
-    () => mapController?.renderer ?? null,
-    [mapController],
-  );
+  const renderer = mapController?.renderer ?? null;
 
   const [snapshotUri, setSnapshotUri] = useState<string | null>(null);
   const [mapHeight, setMapHeight] = useState(300);
   const [errorText, setErrorText] = useState<string | null>(null);
-  const runFuture = useLatestFuture();
 
   const onLayout = useCallback((e: LayoutChangeEvent) => {
     setMapHeight(e.nativeEvent.layout.height / 2 - 50);
@@ -43,8 +36,7 @@ export function MapSnapshotDemo() {
   const takeSnapshot = useCallback(() => {
     if (!renderer) return;
 
-    runFuture(
-      renderer.takeSnapshotAsDataUri(Alignment.TopLeft),
+    renderer.takeSnapshotAsDataUri(Alignment.TopLeft).then(
       uri => {
         if (!uri) {
           setErrorText('Unsupported snapshot format');
@@ -55,7 +47,7 @@ export function MapSnapshotDemo() {
       },
       error => setErrorText(String(error)),
     );
-  }, [renderer, runFuture]);
+  }, [renderer]);
 
   return (
     <View style={styles.container} onLayout={onLayout}>

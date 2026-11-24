@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MapView } from '@2gis/dgis-mobile-sdk-full';
-import type { Map as SdkMap, MapController } from '@2gis/dgis-mobile-sdk-full';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useSdk } from '../sdk/useSdk';
-import { destroyIfPresent } from '../hooks/nativeObjectLifecycle';
 import {
   cardShadowElevated,
   colors,
@@ -26,18 +24,6 @@ const APPEARANCE_OPTIONS: Array<{
   { label: 'Dark', mode: 'dark' },
 ];
 
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
-
 /** Demonstrates switching map appearance between system, light, and dark themes. */
 export function MapAppearanceDemo() {
   const context = useSdk();
@@ -54,9 +40,7 @@ export function MapAppearanceDemo() {
       return;
     }
 
-    withControllerMap(mapController, map => {
-      map.appearance = mapAppearance;
-    });
+    mapController.map.appearance = mapAppearance;
   }, [mapAppearance, mapController]);
 
   return (

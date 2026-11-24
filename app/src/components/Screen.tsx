@@ -34,7 +34,7 @@ export function Screen({
 }: ScreenProps) {
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.header} />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.headerSafeArea} edges={headerSafeAreaEdges}>
         <View style={styles.header}>
           <View style={styles.headerMain}>

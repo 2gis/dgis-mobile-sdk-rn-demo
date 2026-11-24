@@ -16,28 +16,15 @@ import {
 } from 'react-native';
 import {
   EnumSet,
-  GeoPointWithElevation,
   MapObjectManager,
   MapView,
   Marker,
-  MarkerOptions,
   TransformGesture,
 } from '@2gis/dgis-mobile-sdk-full';
-import type {
-  Camera as SdkCamera,
-  Connection,
-  GestureManager,
-  Map as SdkMap,
-  MapController,
-  MapGestureRecognizer,
-  Projection as SdkProjection,
-  ScreenPoint,
-} from '@2gis/dgis-mobile-sdk-full';
+import type { Connection, ScreenPoint } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
-import { useNative } from '../hooks/useNative';
-import { destroyAll, destroyIfPresent } from './demoNativeCleanup';
 import {
   cardShadow,
   colors,
@@ -61,45 +48,6 @@ const DEFAULT_GESTURE_STATE: GestureState = {
   tilt: true,
 };
 
-interface MapObjectManagerResources {
-  manager: MapObjectManager;
-  map: SdkMap;
-  destroy(): void;
-}
-
-function createMapObjectManagerResources(
-  controller: MapController,
-): MapObjectManagerResources {
-  const map = controller.map;
-  const manager = new MapObjectManager(map, null);
-
-  return {
-    manager,
-    map,
-    destroy() {
-      destroyIfPresent(manager);
-      destroyIfPresent(map);
-    },
-  };
-}
-
-function withMapProjection<T>(
-  map: SdkMap,
-  action: (projection: SdkProjection) => T,
-): T {
-  const camera: SdkCamera = map.camera;
-  try {
-    const projection = camera.projection;
-    try {
-      return action(projection);
-    } finally {
-      destroyIfPresent(projection);
-    }
-  } finally {
-    destroyIfPresent(camera);
-  }
-}
-
 /**
  * Demonstrates gesture configuration: disabling individual transform gestures
  * and custom touch event observation (tap, long touch, drag).
@@ -117,26 +65,18 @@ export function MapGesturesDemo() {
     DEFAULT_GESTURE_STATE,
   );
 
-  const managerRef = useRef<MapObjectManager | null>(null);
   const markerCounterRef = useRef(0);
   const markersByIdRef = useRef<Map<number, Marker>>(new Map());
   const draggedIdRef = useRef<number | null>(null);
   const observerConnectionsRef = useRef<Connection[]>([]);
-  const managerResources = useNative<MapObjectManagerResources>(
+  const manager = useMemo(
     () =>
-      mapController ? createMapObjectManagerResources(mapController) : null,
+      mapController ? new MapObjectManager(mapController.map, null) : null,
     [mapController],
   );
-  const manager = managerResources?.manager ?? null;
-  const map = managerResources?.map ?? null;
-  const gestureRecognizer = useNative<MapGestureRecognizer>(
-    () => mapController?.gestureRecognizer ?? null,
-    [mapController],
-  );
-  const gestureManager = useNative<GestureManager>(
-    () => gestureRecognizer?.gestureManager ?? null,
-    [gestureRecognizer],
-  );
+  const map = mapController?.map ?? null;
+  const gestureRecognizer = mapController?.gestureRecognizer ?? null;
+  const gestureManager = gestureRecognizer?.gestureManager ?? null;
 
   const enabledGestureSet = useMemo(
     () =>
@@ -160,14 +100,11 @@ export function MapGesturesDemo() {
   }, []);
 
   useEffect(() => {
-    managerRef.current = manager;
-    const markersByIdSnapshot = markersByIdRef.current;
+    const markersById = markersByIdRef.current;
     return () => {
       clearObserverConnections();
-      managerRef.current?.removeAll();
-      destroyAll(markersByIdSnapshot.values());
-      managerRef.current = null;
-      markersByIdSnapshot.clear();
+      manager?.removeAll();
+      markersById.clear();
       setObserverEnabled(false);
     };
   }, [clearObserverConnections, manager]);
@@ -193,26 +130,22 @@ export function MapGesturesDemo() {
   }, [gestureManager, enabledGestureSet]);
 
   const addMarkerAtScreenPoint = (point: ScreenPoint) => {
-    if (!map || !managerRef.current) return;
-    const geoPoint = withMapProjection(map, projection =>
-      projection.screenToMap(point),
-    );
+    if (!map || !manager) return;
+    const geoPoint = map.camera.projection.screenToMap(point);
     if (!geoPoint) return;
 
     const id = markerCounterRef.current++;
-    const marker = new Marker(
-      new MarkerOptions({
-        position: new GeoPointWithElevation({
-          latitude: geoPoint.latitude,
-          longitude: geoPoint.longitude,
-        }),
-        icon: null,
-        text: `M${id}`,
-        draggable: true,
-        userData: { id },
-      }),
-    );
-    managerRef.current.addObject(marker);
+    const marker = new Marker({
+      position: {
+        latitude: geoPoint.latitude,
+        longitude: geoPoint.longitude,
+      },
+      icon: null,
+      text: `M${id}`,
+      draggable: true,
+      userData: { id },
+    });
+    manager.addObject(marker);
     markersByIdRef.current.set(id, marker);
   };
 
@@ -231,8 +164,7 @@ export function MapGesturesDemo() {
 
     connections.push(
       gestureRecognizer.longTouch.subscribe(point => {
-        managerRef.current?.removeAll();
-        destroyAll(markersByIdRef.current.values());
+        manager?.removeAll();
         markersByIdRef.current.clear();
         setLastEvent(
           `Long touch: (${Math.round(point.x)}, ${Math.round(
@@ -261,15 +193,13 @@ export function MapGesturesDemo() {
         const marker = markersByIdRef.current.get(id);
         if (!marker) return;
 
-        const geoPoint = withMapProjection(map, projection =>
-          projection.screenToMap(point),
-        );
+        const geoPoint = map.camera.projection.screenToMap(point);
         if (!geoPoint) return;
 
-        marker.position = new GeoPointWithElevation({
+        marker.position = {
           latitude: geoPoint.latitude,
           longitude: geoPoint.longitude,
-        });
+        };
       }),
     );
 
@@ -359,7 +289,7 @@ function ActionSheet({
   onToggleObserver: () => void;
 }) {
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
@@ -402,7 +332,7 @@ function GestureSettingsDialog({
   };
 
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>Gestures</Text>

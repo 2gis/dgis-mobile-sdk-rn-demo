@@ -1,19 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 import {
-  CameraPosition,
+  CameraPositionInit,
+  closeMapController,
   DgisSource,
-  GeoPoint,
   MapController,
-  MapControllerOptions,
   MapView,
   readyMapController,
 } from '@2gis/dgis-mobile-sdk-full';
-import type {
-  Context,
-  Map as SdkMap,
-  Source,
-} from '@2gis/dgis-mobile-sdk-full';
+import type { Context, Source } from '@2gis/dgis-mobile-sdk-full';
 import {
   useDefaultMapAppearance,
   useDefaultMapSettings,
@@ -25,11 +20,10 @@ import {
   createMapStyleFileFromSettings,
 } from '../settings';
 import { spacing } from '../theme/theme';
-import { destroyAll, destroyIfPresent } from './demoNativeCleanup';
 
 interface MapState {
   id: string;
-  position: CameraPosition;
+  position: CameraPositionInit;
 }
 
 const CITIES = [
@@ -57,31 +51,19 @@ function generateStates(count: number): MapState[] {
     const zoom = 9 + rng() * 5;
     result.push({
       id: String(i),
-      position: new CameraPosition({
-        point: new GeoPoint({
-          latitude: { value: lat },
-          longitude: { value: lon },
-        }),
-        zoom: { value: zoom },
-      }),
+      position: {
+        point: {
+          latitude: lat,
+          longitude: lon,
+        },
+        zoom: zoom,
+      },
     });
   }
   return result;
 }
 
 const MAP_STATES = generateStates(100);
-
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
 
 /** A single map cell, created once and rebound when the list recycles it. */
 function MapCell({ context, state }: { context: Context; state: MapState }) {
@@ -104,27 +86,23 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
       DgisSource.createDgisSource(context, sourceWorkingMode),
       DgisSource.createImmersiveDgisSource(context),
     ];
-    const future = MapController.create(
-      context,
-      new MapControllerOptions({
-        position: state.position,
-        sources,
-        graphicsPreset,
-        mapAppearance,
-        styleFile,
-      }),
-    );
+    const future = MapController.create(context, {
+      position: state.position,
+      sources,
+      graphicsPreset,
+      mapAppearance,
+      styleFile,
+    });
     future.onComplete(
       created => {
         if (cancelled) {
-          created.destroy();
+          closeMapController(created);
           return;
         }
-        withControllerMap(created, map => {
-          map.appearance = mapAppearance;
-          map.graphicsPreset = graphicsPreset;
-          map.interactive = false;
-        });
+        const map = created.map;
+        map.appearance = mapAppearance;
+        map.graphicsPreset = graphicsPreset;
+        map.interactive = false;
         ctrl = created;
         setController(created);
       },
@@ -132,9 +110,10 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
     );
     return () => {
       cancelled = true;
-      future.destroy();
-      ctrl?.destroy();
-      destroyAll(sources);
+      future.cancel();
+      if (ctrl) {
+        closeMapController(ctrl);
+      }
     };
     // state.position is the initial position; camera updates happen below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -145,14 +124,7 @@ function MapCell({ context, state }: { context: Context; state: MapState }) {
   useEffect(() => {
     if (!controller || prevStateRef.current === state) return;
     prevStateRef.current = state;
-    withControllerMap(controller, map => {
-      const camera = map.camera;
-      try {
-        camera.position = state.position;
-      } finally {
-        destroyIfPresent(camera);
-      }
-    });
+    controller.map.camera.position = state.position;
   }, [controller, state]);
 
   if (!controller) {

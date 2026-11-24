@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert } from 'react-native';
 import {
   ImageLoader,
@@ -12,7 +12,6 @@ import type {
   MapController,
   ModelData as SdkModelData,
   ScreenPoint,
-  SimpleMapObject,
 } from '@2gis/dgis-mobile-sdk-full';
 import {
   type DemoImageCache,
@@ -20,17 +19,9 @@ import {
   loadDemoMarkerImage,
 } from '../../mapDemoAssets';
 import {
-  destroyAll,
-  destroyCachedValue,
-  destroyIfPresent,
-  destroyResolvedCacheValues,
-  ignoreNativeDestroyedError,
-} from '../../demoNativeCleanup';
-import {
   centerScreenPoint,
   mapScreenPoints,
   randomScreenPointsNear,
-  withProjection,
 } from './geometry';
 import {
   createCircleObject,
@@ -64,11 +55,13 @@ export function useAddMapObjects(
   context: Context,
   mapController: MapController | null,
 ): AddMapObjectsActions {
-  const imageLoaderRef = useRef<ImageLoader | null>(null);
-  const modelLoaderRef = useRef<ModelLoader | null>(null);
-  const mapRef = useRef<SdkMap | null>(null);
-  const managerRef = useRef<MapObjectManager | null>(null);
-  const objectsRef = useRef<SimpleMapObject[]>([]);
+  const map = mapController?.map ?? null;
+  const manager = useMemo(
+    () => (map ? new MapObjectManager(map, null) : null),
+    [map],
+  );
+  const imageLoader = useMemo(() => new ImageLoader(context), [context]);
+  const modelLoader = useMemo(() => new ModelLoader(context), [context]);
   const lastObjectRef = useRef<LastObjectDraft | null>(null);
   const imageCacheRef = useRef<DemoImageCache>(new Map());
   const modelDataRef = useRef<SdkModelData | Promise<SdkModelData> | null>(
@@ -76,66 +69,30 @@ export function useAddMapObjects(
   );
   const lifecycleVersionRef = useRef(0);
 
-  if (imageLoaderRef.current === null) {
-    imageLoaderRef.current = new ImageLoader(context);
-  }
-  if (modelLoaderRef.current === null) {
-    modelLoaderRef.current = new ModelLoader(context);
-  }
-
   useEffect(() => {
-    if (!mapController) {
+    if (!manager) {
       return;
     }
-
-    const map = mapController.map;
-    const manager = new MapObjectManager(map, null);
-    mapRef.current = map;
-    managerRef.current = manager;
-
-    const imageCache = imageCacheRef.current;
-
     return () => {
       lifecycleVersionRef.current += 1;
-      ignoreNativeDestroyedError(() => manager.removeAll());
-      ignoreNativeDestroyedError(() => destroyAll(objectsRef.current));
-      objectsRef.current = [];
-      ignoreNativeDestroyedError(() => destroyIfPresent(manager));
-      managerRef.current = null;
-      ignoreNativeDestroyedError(() => destroyIfPresent(map));
-      mapRef.current = null;
+      manager.removeAll();
       lastObjectRef.current = null;
-      ignoreNativeDestroyedError(() => destroyResolvedCacheValues(imageCache));
-      const modelData = modelDataRef.current;
-      if (modelData !== null && !(modelData instanceof Promise)) {
-        ignoreNativeDestroyedError(() => destroyIfPresent(modelData));
-      }
-      modelDataRef.current = null;
     };
-  }, [mapController]);
-
-  const getMap = useCallback((): SdkMap | null => mapRef.current, []);
+  }, [manager]);
 
   const resolveScreenPoint = useCallback(
-    (map: SdkMap, screenPoint?: ScreenPoint) => {
-      const resolvedScreenPoint = screenPoint ?? centerScreenPoint(map);
-      const position = withProjection(map, projection =>
-        projection.screenToMap(resolvedScreenPoint),
-      );
+    (sdkMap: SdkMap, screenPoint?: ScreenPoint) => {
+      const resolvedScreenPoint = screenPoint ?? centerScreenPoint(sdkMap);
+      const position =
+        sdkMap.camera.projection.screenToMap(resolvedScreenPoint);
       return position ? { screenPoint: resolvedScreenPoint, position } : null;
     },
     [],
   );
 
-  const addObject = useCallback((object: SimpleMapObject): void => {
-    managerRef.current?.addObject(object);
-    objectsRef.current.push(object);
-  }, []);
-
   const addCircle = useCallback(
     (settings: CircleSettings, screenPoint?: ScreenPoint) => {
-      const map = getMap();
-      if (!map || !managerRef.current) return;
+      if (!map || !manager) return;
 
       const resolved = resolveScreenPoint(map, screenPoint);
       if (!resolved) return;
@@ -143,20 +100,19 @@ export function useAddMapObjects(
       const result = createCircleObject(settings, resolved.position);
       if (!result.ok) return;
 
-      addObject(result.object);
+      manager.addObject(result.object);
       lastObjectRef.current = {
         kind: 'circle',
         settings: { ...settings },
         screenPoints: [resolved.screenPoint],
       };
     },
-    [addObject, getMap, resolveScreenPoint],
+    [manager, map, resolveScreenPoint],
   );
 
   const addMarker = useCallback(
     async (settings: MarkerSettings, screenPoint?: ScreenPoint) => {
-      const map = getMap();
-      if (!map || !managerRef.current) return;
+      if (!map || !manager) return;
 
       const resolved = resolveScreenPoint(map, screenPoint);
       if (!resolved) return;
@@ -165,7 +121,7 @@ export function useAddMapObjects(
       let icon: SdkImage;
       try {
         icon = await loadDemoMarkerImage(
-          imageLoaderRef.current!,
+          imageLoader,
           imageCacheRef.current,
           settings.markerType,
         );
@@ -174,31 +130,26 @@ export function useAddMapObjects(
         return;
       }
 
-      if (
-        requestVersion !== lifecycleVersionRef.current ||
-        !managerRef.current
-      ) {
-        destroyCachedValue(imageCacheRef.current, icon);
+      if (requestVersion !== lifecycleVersionRef.current) {
         return;
       }
 
       const result = createMarkerObject(settings, resolved.position, icon);
       if (!result.ok) return;
 
-      addObject(result.object);
+      manager.addObject(result.object);
       lastObjectRef.current = {
         kind: 'marker',
         settings: { ...settings },
         screenPoints: [resolved.screenPoint],
       };
     },
-    [addObject, getMap, resolveScreenPoint],
+    [imageLoader, manager, map, resolveScreenPoint],
   );
 
   const addModel = useCallback(
     async (settings: ModelSettings, screenPoint?: ScreenPoint) => {
-      const map = getMap();
-      if (!map || !managerRef.current) return;
+      if (!map || !manager) return;
 
       const resolved = resolveScreenPoint(map, screenPoint);
       if (!resolved) return;
@@ -206,40 +157,32 @@ export function useAddMapObjects(
       const requestVersion = lifecycleVersionRef.current;
       let data: SdkModelData;
       try {
-        data = await loadAirplaneModel(modelLoaderRef.current!, modelDataRef);
+        data = await loadAirplaneModel(modelLoader, modelDataRef);
       } catch (error) {
         Alert.alert('Failed to load model', String(error));
         return;
       }
 
-      if (
-        requestVersion !== lifecycleVersionRef.current ||
-        !managerRef.current
-      ) {
-        if (modelDataRef.current === data) {
-          modelDataRef.current = null;
-        }
-        ignoreNativeDestroyedError(() => destroyIfPresent(data));
+      if (requestVersion !== lifecycleVersionRef.current) {
         return;
       }
 
       const result = createModelObject(settings, resolved.position, data);
       if (!result.ok) return;
 
-      addObject(result.object);
+      manager.addObject(result.object);
       lastObjectRef.current = {
         kind: 'model',
         settings: { ...settings },
         screenPoints: [resolved.screenPoint],
       };
     },
-    [addObject, getMap, resolveScreenPoint],
+    [manager, map, modelLoader, resolveScreenPoint],
   );
 
   const addPolyline = useCallback(
     (settings: PolylineSettings, screenPoints?: ScreenPoint[]) => {
-      const map = getMap();
-      if (!map || !managerRef.current) return;
+      if (!map || !manager) return;
 
       const pointCount = getPolylinePointCount(settings);
       if (pointCount === null) return;
@@ -250,20 +193,19 @@ export function useAddMapObjects(
       const result = createPolylineObject(settings, points);
       if (!result.ok) return;
 
-      addObject(result.object);
+      manager.addObject(result.object);
       lastObjectRef.current = {
         kind: 'polyline',
         settings: { ...settings },
         screenPoints: resolvedScreenPoints,
       };
     },
-    [addObject, getMap],
+    [manager, map],
   );
 
   const addPolygon = useCallback(
     (settings: PolygonSettings, screenPoints?: ScreenPoint[]) => {
-      const map = getMap();
-      if (!map || !managerRef.current) return;
+      if (!map || !manager) return;
 
       const pointCount = getPolygonPointCount(settings);
       if (pointCount === null) return;
@@ -274,22 +216,20 @@ export function useAddMapObjects(
       const result = createPolygonObject(settings, points);
       if (!result.ok) return;
 
-      addObject(result.object);
+      manager.addObject(result.object);
       lastObjectRef.current = {
         kind: 'polygon',
         settings: { ...settings },
         screenPoints: resolvedScreenPoints,
       };
     },
-    [addObject, getMap],
+    [manager, map],
   );
 
   const removeAll = useCallback(() => {
-    ignoreNativeDestroyedError(() => managerRef.current?.removeAll());
-    ignoreNativeDestroyedError(() => destroyAll(objectsRef.current));
-    objectsRef.current = [];
+    manager?.removeAll();
     lastObjectRef.current = null;
-  }, []);
+  }, [manager]);
 
   const repeatLastObject = useCallback(() => {
     const draft = lastObjectRef.current;

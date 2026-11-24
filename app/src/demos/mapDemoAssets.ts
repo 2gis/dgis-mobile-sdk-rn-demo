@@ -12,11 +12,13 @@ export const circleMarkerAsset = 'map/circle.png';
 export const clusterMarkerAsset = 'map/icon_circle.png';
 export const pinMarkerAsset = 'map/pin.png';
 export const navigationStartMarkerAsset = 'map/navigation_start.svg';
+export const navigationIntermediateMarkerAsset =
+  'map/navigation_intermediate.svg';
 export const navigationFinishMarkerAsset = 'map/navigation_finish.svg';
 export const airplaneModelAsset = 'map/airplane.glb';
 
 export type DemoMarkerType = 'scooterPng' | 'bridgeSvg' | 'batLottie';
-export type NavigationPointMarkerType = 'start' | 'finish';
+export type NavigationPointMarkerType = 'start' | 'finish' | 'intermediate';
 
 export const DEMO_MARKER_TYPE_OPTIONS: readonly {
   readonly value: DemoMarkerType;
@@ -113,8 +115,11 @@ export async function loadNavigationPointMarkerImage(
   cache: DemoImageCache,
   type: NavigationPointMarkerType,
 ): Promise<SdkImage> {
-  const asset =
-    type === 'start' ? navigationStartMarkerAsset : navigationFinishMarkerAsset;
+  const asset = {
+    start: navigationStartMarkerAsset,
+    finish: navigationFinishMarkerAsset,
+    intermediate: navigationIntermediateMarkerAsset,
+  }[type];
   return readCachedImage(cache, `navigation:${type}`, () =>
     loader.loadSVGFromAsset(asset),
   );

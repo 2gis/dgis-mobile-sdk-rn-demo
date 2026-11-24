@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -23,13 +29,8 @@ import type {
   SuggestQuery,
 } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
-import { useNative } from '../hooks/useNative';
 import { useLatestFuture } from '../hooks/useLatestFuture';
 import { useFutures } from '../hooks/useFutures';
-import {
-  destroyIfPresent,
-  ignoreNativeDestroyedError,
-} from '../hooks/nativeObjectLifecycle';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { EmptyState } from '../components/EmptyState';
 import {
@@ -55,14 +56,6 @@ interface DirectoryListItem {
 }
 
 type SearchListItem = SuggestListItem | DirectoryListItem;
-
-function destroyListItems(items: SearchListItem[]): void {
-  for (const item of items) {
-    if (item.kind === 'suggest') {
-      ignoreNativeDestroyedError(() => destroyIfPresent(item.suggest));
-    }
-  }
-}
 
 function createSuggestItem(suggest: Suggest): SuggestListItem {
   return {
@@ -94,38 +87,19 @@ function createDirectoryItem(object: DirectoryObject): DirectoryListItem {
 }
 
 function createDirectoryItems(objects: DirectoryObject[]): DirectoryListItem[] {
-  const items = objects.map(createDirectoryItem);
-  for (const object of objects) {
-    ignoreNativeDestroyedError(() => destroyIfPresent(object));
-  }
-  return items;
+  return objects.map(createDirectoryItem);
 }
 
 function buildSuggestQuery(text: string): SuggestQuery {
-  const builder = new SuggestQueryBuilder(text);
-  try {
-    return builder.build();
-  } finally {
-    ignoreNativeDestroyedError(() => destroyIfPresent(builder));
-  }
+  return new SuggestQueryBuilder(text).build();
 }
 
 function buildSearchQuery(text: string): SearchQuery {
-  const builder = new SearchQueryBuilder();
-  try {
-    return builder.setQueryText(text).build();
-  } finally {
-    ignoreNativeDestroyedError(() => destroyIfPresent(builder));
-  }
+  return new SearchQueryBuilder().setQueryText(text).build();
 }
 
 function copySearchQuery(query: SearchQuery): SearchQuery {
-  const builder = SearchQueryBuilder.fromQuery(query);
-  try {
-    return builder.build();
-  } finally {
-    ignoreNativeDestroyedError(() => destroyIfPresent(builder));
-  }
+  return SearchQueryBuilder.fromQuery(query).build();
 }
 
 /**
@@ -135,7 +109,7 @@ function copySearchQuery(query: SearchQuery): SearchQuery {
  */
 export function SearchDemo() {
   const context = useSdk();
-  const searchManager = useNative(
+  const searchManager = useMemo(
     () => SearchManager.createOnlineManager(context),
     [context],
   );
@@ -153,14 +127,12 @@ export function SearchDemo() {
   const runPageFuture = useFutures();
 
   const replaceItems = useCallback((nextItems: SearchListItem[]) => {
-    destroyListItems(itemsRef.current);
     itemsRef.current = nextItems;
     setItems(nextItems);
   }, []);
 
   const replacePage = useCallback((nextPage: Page | null) => {
     pageVersionRef.current += 1;
-    ignoreNativeDestroyedError(() => destroyIfPresent(pageRef.current));
     pageRef.current = nextPage;
   }, []);
 
@@ -171,9 +143,7 @@ export function SearchDemo() {
 
   useEffect(() => {
     return () => {
-      destroyListItems(itemsRef.current);
       itemsRef.current = [];
-      ignoreNativeDestroyedError(() => destroyIfPresent(pageRef.current));
       pageRef.current = null;
     };
   }, []);
@@ -298,7 +268,6 @@ export function SearchDemo() {
           setLoadingNextPage(false);
           replacePage(null);
           replaceItems([createDirectoryItem(object)]);
-          ignoreNativeDestroyedError(() => destroyIfPresent(object));
           break;
         }
         case SuggestHandlerKind.IncompleteTextHandler: {
@@ -316,14 +285,11 @@ export function SearchDemo() {
           const searchQuery = copySearchQuery(sourceQuery);
           setQuery(item.title);
           runSearch(searchQuery);
-          ignoreNativeDestroyedError(() => destroyIfPresent(sourceQuery));
           break;
         }
         default:
           setError(`Unknown suggest handler: ${String(handler)}`);
       }
-
-      ignoreNativeDestroyedError(() => destroyIfPresent(handler.value));
     },
     [replaceItems, replacePage, resetResults, runSearch],
   );
@@ -343,7 +309,6 @@ export function SearchDemo() {
           pageVersionRef.current !== requestPageVersion ||
           pageRef.current !== page
         ) {
-          ignoreNativeDestroyedError(() => destroyIfPresent(nextPage));
           return;
         }
 
@@ -429,9 +394,11 @@ export function SearchDemo() {
         ListFooterComponent={
           loadingNextPage ? (
             <ActivityIndicator style={styles.loader} color={colors.header} />
-          ) : null
+          ) : undefined
         }
-        ListEmptyComponent={showEmpty ? <EmptyState text="No results" /> : null}
+        ListEmptyComponent={
+          showEmpty ? <EmptyState text="No results" /> : undefined
+        }
       />
     </View>
   );

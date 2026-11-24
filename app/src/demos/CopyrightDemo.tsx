@@ -14,13 +14,11 @@ import { MapView } from '@2gis/dgis-mobile-sdk-full';
 import type {
   CopyrightAlignment,
   CopyrightEdgeInsets,
-  Map as SdkMap,
 } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useChannelValue } from '../hooks/useChannelValue';
-import { useNative } from '../hooks/useNative';
 import {
   cardShadow,
   cardShadowElevated,
@@ -64,18 +62,13 @@ export function CopyrightDemo() {
   const [edgeInsets, setEdgeInsets] =
     useState<CopyrightEdgeInsets>(DEFAULT_EDGE_INSETS);
   const [alertUriOpener, setAlertUriOpener] = useState(false);
-  const map = useNative<SdkMap>(
-    () => mapController?.map ?? null,
-    [mapController],
-  );
+  const map = mapController?.map ?? null;
 
   const handleCopyrightPress = useCallback((uri: string) => {
     Alert.alert('Uri alert', `Open uri ${uri} for information`);
   }, []);
 
-  const interactive = useChannelValue(() => map?.interactiveChannel, true, [
-    map,
-  ]);
+  const interactive = useChannelValue(() => map?.interactiveChannel, true);
 
   const handleInteractiveToggle = (value: boolean) => {
     if (!map) return;
@@ -188,7 +181,7 @@ function SettingsDialog({
   };
 
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>Copyright options</Text>

@@ -1,22 +1,10 @@
 import {
   Circle,
-  CircleOptions,
-  Color,
-  Elevation,
-  GeoPointWithElevation,
-  LogicalPixel,
   Marker,
-  MarkerOptions,
-  Meter,
   ModelMapObject,
-  ModelMapObjectOptions,
-  ModelScale,
   ModelSize,
   Polygon,
-  PolygonOptions,
   Polyline,
-  PolylineOptions,
-  ZIndex,
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
   GeoPoint,
@@ -46,17 +34,15 @@ export function createCircleObject(
 
   return {
     ok: true,
-    object: new Circle(
-      new CircleOptions({
-        position,
-        radius: new Meter({ value: radius }),
-        color: new Color({ argb: settings.color }),
-        strokeWidth: new LogicalPixel({ value: strokeWidth }),
-        strokeColor: new Color({ argb: settings.strokeColor }),
-        zIndex: new ZIndex({ value: zIndex }),
-        userData: settings.userData ? { id: settings.userData } : null,
-      }),
-    ),
+    object: new Circle({
+      position,
+      radius: radius,
+      color: { argb: settings.color },
+      strokeWidth: strokeWidth,
+      strokeColor: { argb: settings.strokeColor },
+      zIndex: zIndex,
+      userData: settings.userData ? { id: settings.userData } : null,
+    }),
   };
 }
 
@@ -74,20 +60,18 @@ export function createMarkerObject(
 
   return {
     ok: true,
-    object: new Marker(
-      new MarkerOptions({
-        position: new GeoPointWithElevation({
-          latitude: position.latitude,
-          longitude: position.longitude,
-          elevation: new Elevation({ value: elevation }),
-        }),
-        icon,
-        text: settings.text || null,
-        iconWidth: new LogicalPixel({ value: iconWidth }),
-        zIndex: new ZIndex({ value: zIndex }),
-        userData: settings.userData ? { id: settings.userData } : null,
-      }),
-    ),
+    object: new Marker({
+      position: {
+        latitude: position.latitude,
+        longitude: position.longitude,
+        elevation: elevation,
+      },
+      icon,
+      text: settings.text || null,
+      iconWidth: iconWidth,
+      zIndex: zIndex,
+      userData: settings.userData ? { id: settings.userData } : null,
+    }),
   };
 }
 
@@ -103,19 +87,17 @@ export function createModelObject(
 
   return {
     ok: true,
-    object: new ModelMapObject(
-      new ModelMapObjectOptions({
-        position: new GeoPointWithElevation({
-          latitude: position.latitude,
-          longitude: position.longitude,
-        }),
-        data,
-        size: settings.scaleEnabled
-          ? ModelSize.scale(new ModelScale({ value: size }))
-          : ModelSize.logicalPixel(new LogicalPixel({ value: size })),
-        userData: settings.userData ? { value: settings.userData } : null,
-      }),
-    ),
+    object: new ModelMapObject({
+      position: {
+        latitude: position.latitude,
+        longitude: position.longitude,
+      },
+      data,
+      size: settings.scaleEnabled
+        ? ModelSize.scale(size)
+        : ModelSize.logicalPixel(size),
+      userData: settings.userData ? { value: settings.userData } : null,
+    }),
   };
 }
 
@@ -137,15 +119,13 @@ export function createPolylineObject(
 
   return {
     ok: true,
-    object: new Polyline(
-      new PolylineOptions({
-        points,
-        width: new LogicalPixel({ value: width }),
-        color: new Color({ argb: settings.color }),
-        zIndex: new ZIndex({ value: zIndex }),
-        userData: settings.userData ? { id: settings.userData } : null,
-      }),
-    ),
+    object: new Polyline({
+      points,
+      width: width,
+      color: { argb: settings.color },
+      zIndex: zIndex,
+      userData: settings.userData ? { id: settings.userData } : null,
+    }),
   };
 }
 
@@ -165,16 +145,14 @@ export function createPolygonObject(
 
   return {
     ok: true,
-    object: new Polygon(
-      new PolygonOptions({
-        contours: [points],
-        color: new Color({ argb: settings.color }),
-        strokeWidth: new LogicalPixel({ value: strokeWidth }),
-        strokeColor: new Color({ argb: settings.strokeColor }),
-        zIndex: new ZIndex({ value: zIndex }),
-        userData: settings.userData ? { id: settings.userData } : null,
-      }),
-    ),
+    object: new Polygon({
+      contours: [points],
+      color: { argb: settings.color },
+      strokeWidth: strokeWidth,
+      strokeColor: { argb: settings.strokeColor },
+      zIndex: zIndex,
+      userData: settings.userData ? { id: settings.userData } : null,
+    }),
   };
 }
 

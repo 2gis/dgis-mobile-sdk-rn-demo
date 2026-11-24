@@ -1,8 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import {
   MapView,
-  MyLocationControllerSettings,
   MyLocationMapObjectMarkerType,
   MyLocationMapObjectSource,
 } from '@2gis/dgis-mobile-sdk-full';
@@ -10,11 +9,6 @@ import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useInitializeLocationService } from '../hooks/useInitializeLocationService';
-import { useNative } from '../hooks/useNative';
-import {
-  destroyIfPresent,
-  isNativeDestroyedError,
-} from '../hooks/nativeObjectLifecycle';
 
 /** Minimal map demo — shows the map with default options and nothing else. */
 export function MapDemo() {
@@ -26,11 +20,11 @@ export function MapDemo() {
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
 
-  const myLocationSource = useNative<MyLocationMapObjectSource>(
+  const myLocationSource = useMemo<MyLocationMapObjectSource | null>(
     () =>
       new MyLocationMapObjectSource(
         context,
-        new MyLocationControllerSettings({}),
+        {},
         MyLocationMapObjectMarkerType.Model,
       ),
     [context],
@@ -42,23 +36,10 @@ export function MapDemo() {
     }
 
     const map = mapController.map;
-    try {
-      map.addSource(myLocationSource);
-    } catch (error) {
-      destroyIfPresent(map);
-      throw error;
-    }
+    map.addSource(myLocationSource);
 
     return () => {
-      try {
-        map.removeSource(myLocationSource);
-      } catch (error) {
-        if (!isNativeDestroyedError(error)) {
-          throw error;
-        }
-      } finally {
-        destroyIfPresent(map);
-      }
+      map.removeSource(myLocationSource);
     };
   }, [mapController, myLocationSource]);
 

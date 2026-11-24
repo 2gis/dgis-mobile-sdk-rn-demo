@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -21,10 +15,7 @@ import {
   TerritoryManager,
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
-  Camera as SdkCamera,
   Connection,
-  Map as SdkMap,
-  MapController,
   PackageInfo,
   Territory,
 } from '@2gis/dgis-mobile-sdk-full';
@@ -37,7 +28,6 @@ import {
   radius as themeRadius,
   spacing,
 } from '../theme/theme';
-import { destroyIfPresent, isNativeDestroyedError } from './demoNativeCleanup';
 
 type FilterMode = 'all' | 'position' | 'viewport';
 
@@ -71,27 +61,6 @@ function matchesGeometryFilter(
   }
 
   return allowedIds.has(territory.id);
-}
-
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
-
-function withMapCamera<T>(map: SdkMap, action: (camera: SdkCamera) => T): T {
-  const camera = map.camera;
-  try {
-    return action(camera);
-  } finally {
-    destroyIfPresent(camera);
-  }
 }
 
 function TerritoryRow({ territory }: { territory: Territory }) {
@@ -178,7 +147,10 @@ export function DownloadTerritoriesDemo() {
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
 
-  const territoryManagerRef = useRef<TerritoryManager | null>(null);
+  const territoryManager = useMemo(
+    () => TerritoryManager.instance(context),
+    [context],
+  );
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [filterMode, setFilterMode] = useState<FilterMode>('all');
   const [filterText, setFilterText] = useState('');
@@ -186,52 +158,29 @@ export function DownloadTerritoriesDemo() {
     useState<ReadonlySet<string> | null>(null);
 
   const recomputeGeometryFilter = useCallback(() => {
-    const territoryManager = territoryManagerRef.current;
-    if (!mapController || !territoryManager || filterMode === 'all') {
+    if (!mapController || filterMode === 'all') {
       setGeometryFilteredIds(null);
       return;
     }
 
-    try {
-      if (filterMode === 'position') {
-        const ids = withControllerMap(mapController, map =>
-          withMapCamera(
-            map,
-            camera =>
-              new Set(
-                territoryManager
-                  .findByPoint(camera.position.point)
-                  .map(t => t.id),
-              ),
-          ),
-        );
-        setGeometryFilteredIds(ids);
-        return;
-      }
-
-      const ids = withControllerMap(mapController, map =>
-        withMapCamera(
-          map,
-          camera =>
-            new Set(
-              territoryManager.findByRect(camera.visibleRect).map(t => t.id),
-            ),
-        ),
+    const camera = mapController.map.camera;
+    if (filterMode === 'position') {
+      const ids = new Set(
+        territoryManager.findByPoint(camera.position.point).map(t => t.id),
       );
       setGeometryFilteredIds(ids);
-    } catch (error) {
-      if (!isNativeDestroyedError(error)) {
-        throw error;
-      }
+      return;
     }
-  }, [filterMode, mapController]);
+
+    const ids = new Set(
+      territoryManager.findByRect(camera.visibleRect).map(t => t.id),
+    );
+    setGeometryFilteredIds(ids);
+  }, [filterMode, mapController, territoryManager]);
 
   useEffect(() => {
     const packageManager = PackageManager.instance(context);
     packageManager.checkForUpdates();
-
-    const territoryManager = TerritoryManager.instance(context);
-    territoryManagerRef.current = territoryManager;
 
     const territoriesConnection = territoryManager.territoriesChannel.subscribe(
       list => {
@@ -243,9 +192,8 @@ export function DownloadTerritoriesDemo() {
 
     return () => {
       territoriesConnection.disconnect();
-      territoryManagerRef.current = null;
     };
-  }, [context]);
+  }, [context, territoryManager]);
 
   useEffect(() => {
     if (!mapController) {
@@ -280,8 +228,6 @@ export function DownloadTerritoriesDemo() {
       for (const connection of connections) {
         connection.disconnect();
       }
-      destroyIfPresent(camera);
-      destroyIfPresent(map);
     };
   }, [filterMode, mapController, recomputeGeometryFilter]);
 
