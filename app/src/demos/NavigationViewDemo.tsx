@@ -1,34 +1,48 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
-  CarRouteSearchOptions,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
   Duration,
-  GeoPointWithElevation,
+  Future,
   ImageLoader,
-  LogicalPixel,
   MapObjectManager,
   MapView,
   Marker,
-  MarkerOptions,
   NavigationManager,
   NavigationView,
-  RouteBuildOptions,
-  RouteDistance,
+  RouteSearchPointInit,
   RouteSearchOptions,
-  RouteSearchPoint,
-  SimulationConstantSpeed,
   SimulationSpeedMode,
+  TrafficRoute,
   TrafficRouter,
 } from '@2gis/dgis-mobile-sdk-full';
 import type { GeoPoint } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useMapController } from '../hooks/useMapController';
-import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
+import {
+  useDefaultMapAppearance,
+  useDefaultMapOptions,
+} from '../hooks/useDefaultMapOptions';
 import { useInitializeLocationService } from '../hooks/useInitializeLocationService';
 import { useLatestFuture } from '../hooks/useLatestFuture';
 import { useChannelEffect } from '../hooks/useChannelEffect';
-import { useNative } from '../hooks/useNative';
-import { isNativeDestroyedError } from '../hooks/nativeObjectLifecycle';
 import { Centered } from '../components/Centered';
 import {
   loadNavigationPointMarkerImage,
@@ -36,62 +50,85 @@ import {
   type NavigationPointMarkerType,
 } from './mapDemoAssets';
 import { colors, radius, spacing, typography } from '../theme/theme';
+import {
+  defaultNavigationDemoSettings,
+  NavigationDemoSettingsForm,
+} from './NavigationDemoSettings';
+import { useNavigationMiniMap } from '../hooks/useNavigationMiniMap';
 
-const DEFAULT_SPEED_KPH = 60;
-const SPEED_STEP_KPH = 5;
-const MIN_SPEED_KPH = 5;
-const MAX_SPEED_KPH = 200;
 const KPH_IN_MPS = 3.6;
 const ROUTE_POINT_MARKER_WIDTH = 30;
 
-type Phase = 'selectStart' | 'selectFinish' | 'settings' | 'navigation';
-
-function clampSpeed(value: number): number {
-  return Math.min(MAX_SPEED_KPH, Math.max(MIN_SPEED_KPH, value));
-}
+type Phase =
+  | 'selectStart'
+  | 'selectFinish'
+  | 'settings'
+  | 'searching'
+  | 'navigation';
 
 /**
- * Navigation demo: pick the start and the finish point with a long tap, choose
- * whether to simulate the drive and at what speed, then run the navigator with
- * `NavigationView` on top of the map.
+ * Long touch selects start/finish; taps between them add ordered waypoints.
+ * Configure route navigation, simulation, or free roam before starting.
  */
 export function NavigationViewDemo() {
+  return (
+    <Suspense fallback={<ActivityIndicator style={styles.suspenseFallback} />}>
+      <NavigationViewDemoContent />
+    </Suspense>
+  );
+}
+
+function NavigationViewDemoContent() {
   const context = useSdk();
+  const insets = useSafeAreaInsets();
   useInitializeLocationService();
 
   const options = useDefaultMapOptions(context);
+  const miniMapAppearance = useDefaultMapAppearance();
+  const miniMapControllerState = useNavigationMiniMap(
+    context,
+    miniMapAppearance,
+  );
   const { controllerState, mapController } = useMapController(context, options);
 
-  const navigationManager = useNative<NavigationManager>(() => {
+  const navigationManager = useMemo<NavigationManager | null>(() => {
     const manager = new NavigationManager(context);
     // Remove the time/route-difference thresholds to make better-route
     // prompts easier to exercise in this demo.
     const settings = manager.alternativeRoutesProviderSettings;
     settings.betterRouteEnabled = true;
     settings.betterRouteTimeCostThreshold = Duration.ofSeconds(0);
-    settings.betterRouteLengthThreshold = new RouteDistance({
+    settings.betterRouteLengthThreshold = {
       millimeters: 0n,
-    });
+    };
     return manager;
   }, [context]);
-  const trafficRouter = useNative<TrafficRouter>(
+  const trafficRouter = useMemo<TrafficRouter | null>(
     () => new TrafficRouter(context),
     [context],
   );
-  const objectManager = useNative<MapObjectManager>(
+  const objectManager = useMemo<MapObjectManager | null>(
     () => (mapController ? new MapObjectManager(mapController.map) : null),
     [mapController],
   );
 
   const [phase, setPhase] = useState<Phase>('selectStart');
-  const [useSimulation, setUseSimulation] = useState(true);
-  const [speedKph, setSpeedKph] = useState(DEFAULT_SPEED_KPH);
+  const [settings, setSettings] = useState(defaultNavigationDemoSettings);
+  const [intermediatePointCount, setIntermediatePointCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const phaseRef = useRef<Phase>(phase);
   phaseRef.current = phase;
   const startPointRef = useRef<GeoPoint | null>(null);
   const finishPointRef = useRef<GeoPoint | null>(null);
+  const intermediatePointsRef = useRef<RouteSearchPointInit[]>([]);
+  const markerGenerationRef = useRef(0);
+  const routeSearchRef = useRef<Future<TrafficRoute[]> | null>(null);
+
+  const changePhase = useCallback((next: Phase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
 
   const runRouteSearch = useLatestFuture();
 
@@ -102,48 +139,64 @@ export function NavigationViewDemo() {
   const imageCacheRef = useRef<DemoImageCache>(new Map());
 
   const addMarker = useCallback(
-    (point: GeoPoint, type: NavigationPointMarkerType) => {
+    (point: GeoPoint, type: NavigationPointMarkerType, label?: string) => {
       const loader = imageLoaderRef.current;
       if (!loader || !objectManager) {
         return;
       }
 
-      loadNavigationPointMarkerImage(loader, imageCacheRef.current, type)
+      const generation = markerGenerationRef.current;
+      const image = loadNavigationPointMarkerImage(
+        loader,
+        imageCacheRef.current,
+        type,
+      );
+      image
         .then(icon => {
+          if (generation !== markerGenerationRef.current) {
+            return;
+          }
           objectManager.addObject(
-            new Marker(
-              new MarkerOptions({
-                position: new GeoPointWithElevation({
-                  latitude: point.latitude,
-                  longitude: point.longitude,
-                }),
-                icon,
-                iconWidth: new LogicalPixel({
-                  value: ROUTE_POINT_MARKER_WIDTH,
-                }),
-              }),
-            ),
+            new Marker({
+              position: {
+                latitude: point.latitude,
+                longitude: point.longitude,
+              },
+              icon,
+              text: label,
+              iconWidth: ROUTE_POINT_MARKER_WIDTH,
+            }),
           );
         })
-        .catch(iconError =>
-          setError(`Marker icon failed: ${String(iconError)}`),
-        );
+        .catch(iconError => {
+          if (generation === markerGenerationRef.current) {
+            setError(`Marker icon failed: ${String(iconError)}`);
+          }
+        });
     },
     [objectManager],
   );
 
+  const clearMarkers = useCallback(() => {
+    markerGenerationRef.current += 1;
+    objectManager?.removeAll();
+  }, [objectManager]);
+
   const reset = useCallback(() => {
+    routeSearchRef.current = null;
     startPointRef.current = null;
     finishPointRef.current = null;
-    objectManager?.removeAll();
-    setPhase('selectStart');
-  }, [objectManager]);
+    intermediatePointsRef.current = [];
+    setIntermediatePointCount(0);
+    clearMarkers();
+    changePhase('selectStart');
+  }, [changePhase, clearMarkers]);
 
   useChannelEffect(
     () => mapController?.gestureRecognizer.longTouch,
     screenPoint => {
-      const geoPoint =
-        mapController?.map.camera.projection.screenToMap(screenPoint);
+      const map = mapController?.map;
+      const geoPoint = map?.camera.projection.screenToMap(screenPoint);
       if (!geoPoint) {
         return;
       }
@@ -152,101 +205,171 @@ export function NavigationViewDemo() {
         startPointRef.current = geoPoint;
         addMarker(geoPoint, 'start');
         setError(null);
-        setPhase('selectFinish');
+        changePhase('selectFinish');
       } else if (phaseRef.current === 'selectFinish') {
         finishPointRef.current = geoPoint;
         addMarker(geoPoint, 'finish');
-        setPhase('settings');
+        changePhase('settings');
       }
     },
-    [mapController, addMarker],
+  );
+
+  useChannelEffect(
+    () => mapController?.gestureRecognizer.tap,
+    screenPoint => {
+      if (phaseRef.current !== 'selectFinish') {
+        return;
+      }
+      const point =
+        mapController?.map.camera.projection.screenToMap(screenPoint);
+      if (!point) {
+        return;
+      }
+      intermediatePointsRef.current.push({ coordinates: point });
+      const count = intermediatePointsRef.current.length;
+      addMarker(point, 'intermediate', String(count));
+      setIntermediatePointCount(count);
+    },
   );
 
   const startNavigation = useCallback(() => {
     const start = startPointRef.current;
     const finish = finishPointRef.current;
     const map = mapController?.map;
-    if (!start || !finish || !map || !navigationManager || !trafficRouter) {
+    if (
+      phaseRef.current !== 'settings' ||
+      !map ||
+      !navigationManager ||
+      !trafficRouter
+    ) {
       return;
     }
 
-    const finishPoint = new RouteSearchPoint({ coordinates: finish });
-    const routeSearchOptions = RouteSearchOptions.car(
-      new CarRouteSearchOptions({}),
-    );
+    const failNavigation = (failure: unknown) => {
+      navigationManager.stop();
+      navigationManager.mapManager.removeMap(map);
+      setError(`Navigation failed: ${String(failure)}`);
+      changePhase('settings');
+    };
+    const attachMap = () => {
+      navigationManager.mapManager.addMap(map);
+      map.camera.setBehaviour(
+        navigationManager.mapFollowController.cameraBehaviour,
+      );
+    };
 
-    setPhase('navigation');
-    runRouteSearch(
-      trafficRouter.findRoute(
-        new RouteSearchPoint({ coordinates: start }),
+    setError(null);
+    try {
+      navigationManager.exceedSpeedLimitSettings.allowableSpeedExcess =
+        settings.allowableSpeedExcessKph / KPH_IN_MPS;
+      const freeRoamSettings = navigationManager.freeRoamSettings;
+      // Apply zero too, so a repeated run can disable previously enabled prefetching.
+      freeRoamSettings.onRoutePrefetchLength = {
+        millimeters: BigInt(settings.cacheDistanceOnRouteM) * 1000n,
+      };
+      freeRoamSettings.onRoutePrefetchRadiusMeters =
+        settings.cacheRadiusOnRouteM;
+      freeRoamSettings.prefetchRadiusMeters = settings.cacheRadiusM;
+
+      if (settings.freeRoam) {
+        attachMap();
+        navigationManager.startFreeRoam();
+        clearMarkers();
+        changePhase('navigation');
+        return;
+      }
+      if (!start || !finish) {
+        setError('Select a start and finish on the map, or enable Free roam.');
+        return;
+      }
+
+      const finishPoint = { coordinates: finish };
+      const routeSearchOptions =
+        settings.routeType === 'Pedestrian'
+          ? RouteSearchOptions.pedestrian({})
+          : settings.routeType === 'Bicycle'
+          ? RouteSearchOptions.bicycle({})
+          : RouteSearchOptions.car({});
+
+      changePhase('searching');
+      const search = trafficRouter.findRoute(
+        { coordinates: start },
         finishPoint,
         routeSearchOptions,
-      ),
-      routes => {
-        const route = routes[0];
-        if (!route) {
-          setError('Route not found');
-          reset();
-          return;
-        }
+        [...intermediatePointsRef.current],
+      );
+      routeSearchRef.current = search;
+      runRouteSearch(
+        search,
+        routes => {
+          if (routeSearchRef.current !== search) {
+            return;
+          }
+          routeSearchRef.current = null;
+          const route = routes[0];
+          if (!route) {
+            setError('Route not found');
+            changePhase('settings');
+            return;
+          }
 
-        const routeBuildOptions = new RouteBuildOptions({
-          finishPoint,
-          routeSearchOptions,
-        });
+          try {
+            const routeBuildOptions = {
+              finishPoint,
+              routeSearchOptions,
+            };
 
-        if (useSimulation) {
-          navigationManager.simulationSettings.speedMode =
-            SimulationSpeedMode.speed(
-              new SimulationConstantSpeed({ speed: speedKph / KPH_IN_MPS }),
-            );
-        }
+            if (settings.useSimulation) {
+              navigationManager.simulationSettings.speedMode =
+                SimulationSpeedMode.speed({
+                  speed: settings.speedKph / KPH_IN_MPS,
+                });
+            }
 
-        navigationManager.mapManager.addMap(map);
-        map.camera.setBehaviour(
-          navigationManager.mapFollowController.cameraBehaviour,
-        );
+            attachMap();
 
-        if (useSimulation) {
-          navigationManager.startSimulation(routeBuildOptions, route);
-        } else {
-          navigationManager.start(routeBuildOptions, route);
-        }
+            if (settings.useSimulation) {
+              navigationManager.startSimulation(routeBuildOptions, route);
+            } else {
+              navigationManager.start(routeBuildOptions, route);
+            }
 
-        objectManager?.removeAll();
-      },
-      searchError => {
-        setError(`Route search failed: ${String(searchError)}`);
-        reset();
-      },
-    );
+            clearMarkers();
+            changePhase('navigation');
+          } catch (startError) {
+            failNavigation(startError);
+          }
+        },
+        searchError => {
+          if (routeSearchRef.current !== search) {
+            return;
+          }
+          routeSearchRef.current = null;
+          setError(`Route search failed: ${String(searchError)}`);
+          changePhase('settings');
+        },
+      );
+    } catch (startError) {
+      failNavigation(startError);
+    }
   }, [
+    changePhase,
+    clearMarkers,
     mapController,
     navigationManager,
-    objectManager,
-    reset,
     runRouteSearch,
-    speedKph,
+    settings,
     trafficRouter,
-    useSimulation,
   ]);
 
   const stopNavigation = useCallback(() => {
-    const map = mapController?.map;
-    if (!navigationManager || !map) {
+    if (!navigationManager) {
       return;
     }
 
-    try {
-      navigationManager.stop();
-      navigationManager.mapManager.removeMap(map);
-    } catch (stopError) {
-      if (!isNativeDestroyedError(stopError)) {
-        throw stopError;
-      }
-    }
+    navigationManager.stop();
     reset();
-  }, [mapController, navigationManager, reset]);
+  }, [navigationManager, reset]);
 
   const handleFinishRoutePress = useCallback(
     ({ isFreeRoam }: { isFreeRoam: boolean }) => {
@@ -265,15 +388,14 @@ export function NavigationViewDemo() {
 
   useEffect(() => {
     return () => {
-      try {
-        navigationManager?.stop();
-      } catch (stopError) {
-        if (!isNativeDestroyedError(stopError)) {
-          throw stopError;
-        }
+      markerGenerationRef.current += 1;
+      routeSearchRef.current = null;
+      navigationManager?.stop();
+      if (mapController) {
+        navigationManager?.mapManager.removeMap(mapController.map);
       }
     };
-  }, [navigationManager]);
+  }, [navigationManager, mapController]);
 
   if (!mapController || !navigationManager || !trafficRouter) {
     return <Centered text={controllerState.status} />;
@@ -288,11 +410,67 @@ export function NavigationViewDemo() {
           sdkContext={context}
           navigationManager={navigationManager}
           mapController={mapController}
+          miniMapControllerState={miniMapControllerState.controllerState}
           onFinishRoutePress={handleFinishRoutePress}
         />
       )}
 
-      {error !== null && <Text style={styles.error}>{error}</Text>}
+      {(phase === 'selectStart' ||
+        phase === 'selectFinish' ||
+        phase === 'searching') && (
+        <View style={styles.mapPanel}>
+          <Text style={styles.hint}>
+            {phase === 'selectStart'
+              ? 'Long press to select the start, or press Go? to set up free roam.'
+              : phase === 'selectFinish'
+              ? `Tap to add intermediate points (${intermediatePointCount}). Long press to select the finish.`
+              : 'Searching route…'}
+          </Text>
+          {phase !== 'selectStart' && (
+            <View style={styles.sheetActions}>
+              {phase === 'searching' && (
+                <ActivityIndicator color={colors.accent} />
+              )}
+              <Pressable
+                accessibilityRole="button"
+                style={styles.secondaryButton}
+                onPress={reset}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {phase === 'searching' ? 'Cancel search' : 'Reset points'}
+                </Text>
+              </Pressable>
+            </View>
+          )}
+        </View>
+      )}
+
+      {(phase === 'selectStart' || phase === 'selectFinish') && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open navigation settings"
+          style={[
+            styles.primaryButton,
+            styles.goButton,
+            { bottom: insets.bottom + spacing.xl },
+          ]}
+          onPress={() => {
+            setError(null);
+            changePhase('settings');
+          }}
+        >
+          <Text style={styles.primaryButtonText}>Go?</Text>
+        </Pressable>
+      )}
+
+      {error !== null && phase !== 'settings' && (
+        <Text style={styles.error}>{error}</Text>
+      )}
+      {miniMapControllerState.controllerState.status === 'error' && (
+        <Text style={styles.error}>
+          Mini map: {miniMapControllerState.controllerState.error.message}
+        </Text>
+      )}
 
       <Modal
         visible={phase === 'settings'}
@@ -300,57 +478,63 @@ export function NavigationViewDemo() {
         animationType="fade"
         onRequestClose={reset}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.sheet}>
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View
+            style={[
+              styles.sheet,
+              { paddingBottom: Math.max(insets.bottom, spacing.lg) },
+            ]}
+          >
             <Text style={styles.sheetTitle}>Navigation settings</Text>
-
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>Use simulation</Text>
-              <Switch value={useSimulation} onValueChange={setUseSimulation} />
-            </View>
-
-            <View style={styles.row}>
-              <Text style={styles.rowLabel}>
-                Simulation speed: {speedKph} km/h
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.settingsContent}
+            >
+              <Text style={styles.hint}>
+                {startPointRef.current && finishPointRef.current
+                  ? `Intermediate points: ${intermediatePointCount}`
+                  : 'Select start and finish points on the map for route navigation.'}
               </Text>
-              <View style={styles.stepper}>
-                <Pressable
-                  style={[
-                    styles.stepperButton,
-                    !useSimulation && styles.disabled,
-                  ]}
-                  disabled={!useSimulation}
-                  onPress={() =>
-                    setSpeedKph(current => clampSpeed(current - SPEED_STEP_KPH))
-                  }
-                >
-                  <Text style={styles.stepperText}>−</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.stepperButton,
-                    !useSimulation && styles.disabled,
-                  ]}
-                  disabled={!useSimulation}
-                  onPress={() =>
-                    setSpeedKph(current => clampSpeed(current + SPEED_STEP_KPH))
-                  }
-                >
-                  <Text style={styles.stepperText}>+</Text>
-                </Pressable>
-              </View>
-            </View>
-
+              {phase === 'settings' && (
+                <NavigationDemoSettingsForm
+                  value={settings}
+                  onChange={setSettings}
+                />
+              )}
+              {error !== null && (
+                <Text style={styles.settingsError}>{error}</Text>
+              )}
+            </ScrollView>
             <View style={styles.sheetActions}>
-              <Pressable style={styles.secondaryButton} onPress={reset}>
+              <Pressable
+                accessibilityRole="button"
+                style={styles.secondaryButton}
+                onPress={reset}
+              >
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
-              <Pressable style={styles.primaryButton} onPress={startNavigation}>
+              <Pressable
+                accessibilityRole="button"
+                style={[
+                  styles.primaryButton,
+                  !settings.freeRoam &&
+                    (!startPointRef.current || !finishPointRef.current) &&
+                    styles.disabled,
+                ]}
+                disabled={
+                  !settings.freeRoam &&
+                  (!startPointRef.current || !finishPointRef.current)
+                }
+                onPress={startNavigation}
+              >
                 <Text style={styles.primaryButtonText}>Start</Text>
               </Pressable>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -358,6 +542,9 @@ export function NavigationViewDemo() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  suspenseFallback: {
     flex: 1,
   },
   map: {
@@ -380,6 +567,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.3)',
   },
   sheet: {
+    maxHeight: '90%',
     backgroundColor: colors.surface,
     borderTopLeftRadius: radius.md,
     borderTopRightRadius: radius.md,
@@ -390,29 +578,27 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     ...typography.title,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  settingsContent: {
+    gap: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  rowLabel: {
-    color: colors.textPrimary,
-    ...typography.body,
+  settingsError: {
+    color: colors.errorText,
+    ...typography.caption,
   },
-  stepper: {
-    flexDirection: 'row',
+  mapPanel: {
+    position: 'absolute',
+    top: spacing.md,
+    left: spacing.md,
+    right: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
     gap: spacing.sm,
   },
-  stepperButton: {
-    minWidth: 40,
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.xs,
-  },
-  stepperText: {
-    color: colors.textPrimary,
-    ...typography.title,
+  hint: {
+    color: colors.textMuted,
+    ...typography.caption,
   },
   disabled: {
     opacity: 0.4,
@@ -436,6 +622,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
+  },
+  goButton: {
+    position: 'absolute',
+    right: spacing.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   primaryButtonText: {
     color: colors.textInverse,

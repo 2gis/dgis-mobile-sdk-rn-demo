@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -15,7 +15,6 @@ import {
   TrafficControl,
   IndoorControl,
   MyLocationControl,
-  MyLocationControllerSettings,
   MyLocationMapObjectMarkerType,
   MyLocationMapObjectSource,
   defaultMapControlsColors,
@@ -25,14 +24,11 @@ import {
   makeIndoorControlColors,
   makeMyLocationControlColors,
   type MapControlsColors,
-  type Map as SdkMap,
 } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useInitializeLocationService } from '../hooks/useInitializeLocationService';
-import { useNative } from '../hooks/useNative';
-import { isNativeDestroyedError } from '../hooks/nativeObjectLifecycle';
 import { checkLocationPermissions } from '../sdk/locationPermissions';
 import {
   colors as themeColors,
@@ -144,16 +140,13 @@ function MapWithControls({ settings }: { settings: Settings }) {
   const locationService = useInitializeLocationService();
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
-  const map = useNative<SdkMap>(
-    () => mapController?.map ?? null,
-    [mapController],
-  );
+  const map = mapController?.map ?? null;
 
-  const myLocationSource = useNative<MyLocationMapObjectSource>(
+  const myLocationSource = useMemo<MyLocationMapObjectSource | null>(
     () =>
       new MyLocationMapObjectSource(
         context,
-        new MyLocationControllerSettings({}),
+        {},
         MyLocationMapObjectMarkerType.Model,
       ),
     [context],
@@ -178,13 +171,7 @@ function MapWithControls({ settings }: { settings: Settings }) {
     map.addSource(myLocationSource);
 
     return () => {
-      try {
-        map.removeSource(myLocationSource);
-      } catch (error) {
-        if (!isNativeDestroyedError(error)) {
-          throw error;
-        }
-      }
+      map.removeSource(myLocationSource);
     };
   }, [map, myLocationSource]);
 

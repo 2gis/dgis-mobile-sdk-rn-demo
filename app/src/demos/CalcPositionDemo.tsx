@@ -15,41 +15,22 @@ import {
   CameraAnimationType,
   CameraPosition,
   Circle,
-  CircleOptions,
-  Color,
   Duration,
-  GeoPoint,
-  GeoPointWithElevation,
   ImageLoader,
-  LogicalPixel,
   MapObjectManager,
   MapView,
   Marker,
-  MarkerOptions,
-  Meter,
   Padding,
   Polygon,
-  PolygonOptions,
-  TextStyle,
   Tilt,
   calcPositionForObjects,
 } from '@2gis/dgis-mobile-sdk-full';
-import type {
-  Camera as SdkCamera,
-  Map as SdkMap,
-  SimpleMapObject,
-} from '@2gis/dgis-mobile-sdk-full';
+import type { SimpleMapObject } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useLatestFuture } from '../hooks/useLatestFuture';
 import { type DemoImageCache, loadCircleMarkerImage } from './mapDemoAssets';
-import {
-  destroyAll,
-  destroyCachedValue,
-  destroyResolvedCacheValues,
-  destroyIfPresent,
-} from './demoNativeCleanup';
 import { colors, radius as themeRadius, spacing } from '../theme/theme';
 
 // ── ARGB helpers ────────────────────────────────────────────────────────────
@@ -131,15 +112,6 @@ interface CameraSnapshot {
   position: CameraPosition;
 }
 
-function withMapCamera<T>(map: SdkMap, action: (camera: SdkCamera) => T): T {
-  const camera = map.camera;
-  try {
-    return action(camera);
-  } finally {
-    destroyIfPresent(camera);
-  }
-}
-
 // ── Component ───────────────────────────────────────────────────────────────
 
 /**
@@ -150,12 +122,10 @@ export function CalcPositionDemo() {
   const context = useSdk();
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
+  const map = mapController?.map ?? null;
   const imageLoaderRef = useRef<ImageLoader | null>(null);
 
-  const mapRef = useRef<SdkMap | null>(null);
-  const managerRef = useRef<MapObjectManager | null>(null);
   const objectsRef = useRef<Map<string, SimpleMapObject[]>>(new Map());
-  const lifecycleVersionRef = useRef(0);
   const imageCacheRef = useRef<DemoImageCache>(new Map());
   const runMoveFuture = useLatestFuture();
   const [standalone, setStandalone] = useState(false);
@@ -175,14 +145,9 @@ export function CalcPositionDemo() {
   }
 
   useEffect(() => {
-    if (!mapController) return;
-    const map = mapController.map;
-    mapRef.current = map;
-    setDensity(withMapCamera(map, camera => camera.deviceDensity.value));
+    if (!map) return;
+    setDensity(map.camera.deviceDensity);
     const manager = new MapObjectManager(map, null);
-    managerRef.current = manager;
-    const requestVersion = lifecycleVersionRef.current;
-    const createdObjects: SimpleMapObject[] = [];
     let cancelled = false;
 
     void (async () => {
@@ -191,67 +156,54 @@ export function CalcPositionDemo() {
           imageLoaderRef.current!,
           imageCacheRef.current,
         );
-        if (cancelled || requestVersion !== lifecycleVersionRef.current) {
-          destroyCachedValue(imageCacheRef.current, markerIcon);
+        if (cancelled) {
           return;
         }
 
         for (const group of MARKER_GROUPS) {
           const markers = group.points.map(
             p =>
-              new Marker(
-                new MarkerOptions({
-                  position: new GeoPointWithElevation({
-                    latitude: { value: p.lat },
-                    longitude: { value: p.lon },
-                  }),
-                  icon: markerIcon,
-                  text: 'X',
-                  textStyle: new TextStyle({
-                    fontSize: new LogicalPixel({ value: 24 }),
-                    color: new Color({ argb: RED }),
-                  }),
-                }),
-              ),
+              new Marker({
+                position: {
+                  latitude: p.lat,
+                  longitude: p.lon,
+                },
+                icon: markerIcon,
+                text: 'X',
+                textStyle: {
+                  fontSize: 24,
+                  color: { argb: RED },
+                },
+              }),
           );
-          createdObjects.push(...markers);
           objectsRef.current.set(group.label, markers);
           manager.addObjects(markers);
         }
 
-        const circle = new Circle(
-          new CircleOptions({
-            position: new GeoPoint({
-              latitude: { value: CIRCLE_POS.lat },
-              longitude: { value: CIRCLE_POS.lon },
-            }),
-            radius: new Meter({ value: 1000 }),
-            color: new Color({ argb: RED }),
-            strokeColor: new Color({ argb: BLUE }),
-            strokeWidth: new LogicalPixel({ value: 1 }),
-          }),
-        );
-        createdObjects.push(circle);
+        const circle = new Circle({
+          position: {
+            latitude: CIRCLE_POS.lat,
+            longitude: CIRCLE_POS.lon,
+          },
+          radius: 1000,
+          color: { argb: RED },
+          strokeColor: { argb: BLUE },
+          strokeWidth: 1,
+        });
         manager.addObject(circle);
         objectsRef.current.set('Circle', [circle]);
 
-        const polygon = new Polygon(
-          new PolygonOptions({
-            contours: [
-              POLYGON_POINTS.map(
-                p =>
-                  new GeoPoint({
-                    latitude: { value: p.lat },
-                    longitude: { value: p.lon },
-                  }),
-              ),
-            ],
-            color: new Color({ argb: RED }),
-            strokeColor: new Color({ argb: BLUE }),
-            strokeWidth: new LogicalPixel({ value: 10 }),
-          }),
-        );
-        createdObjects.push(polygon);
+        const polygon = new Polygon({
+          contours: [
+            POLYGON_POINTS.map(p => ({
+              latitude: p.lat,
+              longitude: p.lon,
+            })),
+          ],
+          color: { argb: RED },
+          strokeColor: { argb: BLUE },
+          strokeWidth: 10,
+        });
         manager.addObject(polygon);
         objectsRef.current.set('Polygon', [polygon]);
 
@@ -265,21 +217,13 @@ export function CalcPositionDemo() {
     })();
 
     const currentObjects = objectsRef.current;
-    const imageCache = imageCacheRef.current;
 
     return () => {
       cancelled = true;
-      lifecycleVersionRef.current += 1;
       manager.removeAll();
-      destroyAll(createdObjects);
-      destroyResolvedCacheValues(imageCache);
-      destroyIfPresent(manager);
-      destroyIfPresent(map);
-      managerRef.current = null;
-      mapRef.current = null;
       currentObjects.clear();
     };
-  }, [mapController]);
+  }, [map]);
 
   const doCalcPosition = useCallback(
     (
@@ -288,48 +232,44 @@ export function CalcPositionDemo() {
       overrideTilt?: Tilt,
       overrideBearing?: Bearing,
     ) => {
-      const map = mapRef.current;
       if (!map) return;
 
-      withMapCamera(map, camera => {
-        const pad = overridePadding ?? camera.padding;
-        const tilt = overrideTilt ?? camera.position.tilt;
-        const bearing = overrideBearing ?? camera.position.bearing;
-        const newPos = calcPositionForObjects(
-          camera,
-          objects,
-          null,
-          pad,
-          tilt,
-          bearing,
-          null,
-        );
-        runMoveFuture(
-          camera.moveToCameraPosition(
-            newPos,
-            Duration.ofMilliseconds(500),
-            CameraAnimationType.Default,
-          ),
-          () => {},
-          error => Alert.alert('Failed to move camera', String(error)),
-        );
-      });
+      const camera = map.camera;
+      const pad = overridePadding ?? camera.padding;
+      const tilt = overrideTilt ?? camera.position.tilt;
+      const bearing = overrideBearing ?? camera.position.bearing;
+      const newPos = calcPositionForObjects(
+        camera,
+        objects,
+        null,
+        pad,
+        tilt,
+        bearing,
+        null,
+      );
+      runMoveFuture(
+        camera.moveToCameraPosition(
+          newPos,
+          Duration.ofMilliseconds(500),
+          CameraAnimationType.Default,
+        ),
+        () => {},
+        error => Alert.alert('Failed to move camera', String(error)),
+      );
     },
-    [runMoveFuture],
+    [map, runMoveFuture],
   );
 
   const openSettings = useCallback(() => {
-    const map = mapRef.current;
     if (!map) return;
 
-    withMapCamera(map, camera => {
-      setCameraSnapshot({
-        padding: camera.padding,
-        position: camera.position,
-      });
-      setShowSettings(true);
+    const camera = map.camera;
+    setCameraSnapshot({
+      padding: camera.padding,
+      position: camera.position,
     });
-  }, []);
+    setShowSettings(true);
+  }, [map]);
 
   const closeSettings = useCallback(() => {
     setShowSettings(false);
@@ -354,63 +294,62 @@ export function CalcPositionDemo() {
 
   const handleSettingsApply = useCallback(
     (pad: Padding, tilt: Tilt, bearing: Bearing) => {
-      const map = mapRef.current;
       if (!map) return;
 
-      withMapCamera(map, camera => {
-        if (!standalone) {
-          const position = camera.position;
-          camera.padding = pad;
-          camera.position = new CameraPosition({
-            point: position.point,
-            zoom: position.zoom,
-            tilt,
-            bearing,
-          });
-          setPaddingOverlay(pad);
-        } else if (pendingObjects) {
-          const newPos = calcPositionForObjects(
-            camera,
-            pendingObjects,
-            null,
-            pad,
-            tilt,
-            bearing,
-            null,
-          );
-          runMoveFuture(
-            camera.moveToCameraPosition(
-              newPos,
-              Duration.ofMilliseconds(500),
-              CameraAnimationType.Default,
-            ),
-            () => {},
-            error => Alert.alert('Failed to move camera', String(error)),
-          );
-        }
-      });
-      closeSettings();
-    },
-    [closeSettings, pendingObjects, runMoveFuture, standalone],
-  );
-
-  const handleStandaloneToggle = useCallback((value: boolean) => {
-    setStandalone(value);
-    const map = mapRef.current;
-    if (value && map) {
-      withMapCamera(map, camera => {
+      const camera = map.camera;
+      if (!standalone) {
         const position = camera.position;
-        camera.position = new CameraPosition({
+        camera.padding = pad;
+        camera.position = {
           point: position.point,
           zoom: position.zoom,
-          tilt: new Tilt({ value: 0 }),
-          bearing: new Bearing({ value: 0 }),
-        });
-        camera.padding = new Padding({});
-      });
-      setPaddingOverlay(null);
-    }
-  }, []);
+          tilt,
+          bearing,
+        };
+        setPaddingOverlay(pad);
+      } else if (pendingObjects) {
+        const newPos = calcPositionForObjects(
+          camera,
+          pendingObjects,
+          null,
+          pad,
+          tilt,
+          bearing,
+          null,
+        );
+        runMoveFuture(
+          camera.moveToCameraPosition(
+            newPos,
+            Duration.ofMilliseconds(500),
+            CameraAnimationType.Default,
+          ),
+          () => {},
+          error => Alert.alert('Failed to move camera', String(error)),
+        );
+      }
+      closeSettings();
+    },
+    [closeSettings, map, pendingObjects, runMoveFuture, standalone],
+  );
+
+  const handleStandaloneToggle = useCallback(
+    (value: boolean) => {
+      setStandalone(value);
+      if (value && map) {
+        const camera = map.camera;
+        const position = camera.position;
+        camera.position = {
+          point: position.point,
+          zoom: position.zoom,
+          tilt: 0,
+          bearing: 0,
+        };
+        camera.padding = {};
+        setPaddingOverlay(null);
+      }
+    },
+    [map],
+  );
 
   return (
     <View style={styles.container}>
@@ -485,7 +424,7 @@ function ActionSheet({
   onCancel: () => void;
 }) {
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onCancel}>
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
@@ -539,7 +478,7 @@ function SettingsDialog({
   const [bearing, setBearingVal] = useState('');
 
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>Settings</Text>
@@ -569,13 +508,13 @@ function SettingsDialog({
               keyboardType="numeric"
             />
             <Field
-              label={`Tilt: ${currentPos.tilt.value}`}
+              label={`Tilt: ${currentPos.tilt}`}
               value={tilt}
               onChangeText={setTiltVal}
               keyboardType="numeric"
             />
             <Field
-              label={`Bearing: ${currentPos.bearing.value}`}
+              label={`Bearing: ${currentPos.bearing}`}
               value={bearing}
               onChangeText={setBearingVal}
               keyboardType="numeric"
@@ -598,14 +537,14 @@ function SettingsDialog({
                 standalone && !tilt && !bearing ? {} : {},
               ]}
               onPress={() => {
-                const pad = new Padding({
+                const pad = {
                   left: parseInt(left, 10) || 0,
                   right: parseInt(right, 10) || 0,
                   top: parseInt(top, 10) || 0,
                   bottom: parseInt(bottom, 10) || 0,
-                });
-                const t = new Tilt({ value: parseFloat(tilt) || 0 });
-                const b = new Bearing({ value: parseFloat(bearing) || 0 });
+                };
+                const t = parseFloat(tilt) || 0;
+                const b = parseFloat(bearing) || 0;
                 onSubmit(pad, t, b);
               }}
             >

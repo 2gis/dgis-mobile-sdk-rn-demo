@@ -1,21 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import {
-  CameraPosition,
+  closeMapController,
   DgisSource,
   DgisSourceWorkingMode,
-  Fps,
-  GeoPoint,
   MapController,
-  MapControllerOptions,
   MapView,
   readyMapController,
 } from '@2gis/dgis-mobile-sdk-full';
-import type {
-  Context,
-  Map as SdkMap,
-  Source,
-} from '@2gis/dgis-mobile-sdk-full';
+import type { Context, Source } from '@2gis/dgis-mobile-sdk-full';
 import {
   useDefaultMapAppearance,
   useDefaultMapSettings,
@@ -27,7 +20,6 @@ import {
   createMapStyleFileFromSettings,
 } from '../settings';
 import { colors, spacing } from '../theme/theme';
-import { destroyAll, destroyIfPresent } from './demoNativeCleanup';
 
 /**
  * Two maps side by side, both started in the same tick, to compare first-frame
@@ -36,17 +28,17 @@ import { destroyAll, destroyIfPresent } from './demoNativeCleanup';
  * are construction-only and cannot be reproduced incrementally.
  */
 
-const POSITION = new CameraPosition({
-  point: new GeoPoint({
-    latitude: { value: 55.760898 },
-    longitude: { value: 37.620242 },
-  }),
-  zoom: { value: 15 },
-});
+const POSITION = {
+  point: {
+    latitude: 55.760898,
+    longitude: 37.620242,
+  },
+  zoom: 15,
+};
 
 const FONT_ICON_SIZE_MULTIPLIER = 1.5;
-const MAX_FPS = new Fps({ value: 60 });
-const POWER_SAVING_MAX_FPS = new Fps({ value: 30 });
+const MAX_FPS = 60;
+const POWER_SAVING_MAX_FPS = 30;
 
 function makeSources(
   context: Context,
@@ -56,18 +48,6 @@ function makeSources(
     DgisSource.createDgisSource(context, workingMode),
     DgisSource.createImmersiveDgisSource(context),
   ];
-}
-
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
 }
 
 export function TwoMapsDemo() {
@@ -91,62 +71,47 @@ export function TwoMapsDemo() {
     let optionsCtrl: MapController | null = null;
     let incrementalCtrl: MapController | null = null;
     const optionsSources = makeSources(context, sourceWorkingMode);
-    const incrementalSources: Source[] = [];
 
-    const optionsFuture = MapController.create(
-      context,
-      new MapControllerOptions({
-        sources: optionsSources,
-        position: POSITION,
-        fontIconSizeMultiplier: FONT_ICON_SIZE_MULTIPLIER,
-        graphicsPreset,
-        mapAppearance,
-        styleFile,
-        maxFps: MAX_FPS,
-        powerSavingMaxFps: POWER_SAVING_MAX_FPS,
-      }),
-    );
+    const optionsFuture = MapController.create(context, {
+      sources: optionsSources,
+      position: POSITION,
+      fontIconSizeMultiplier: FONT_ICON_SIZE_MULTIPLIER,
+      graphicsPreset,
+      mapAppearance,
+      styleFile,
+      maxFps: MAX_FPS,
+      powerSavingMaxFps: POWER_SAVING_MAX_FPS,
+    });
     optionsFuture.onComplete(
       created => {
         if (cancelled) {
-          created.destroy();
+          closeMapController(created);
           return;
         }
-        withControllerMap(created, map => {
-          map.appearance = mapAppearance;
-          map.graphicsPreset = graphicsPreset;
-        });
+        const map = created.map;
+        map.appearance = mapAppearance;
+        map.graphicsPreset = graphicsPreset;
         optionsCtrl = created;
         setOptionsController(created);
       },
       () => {},
     );
 
-    const incrementalFuture = MapController.create(
-      context,
-      new MapControllerOptions({ styleFile }),
-    );
+    const incrementalFuture = MapController.create(context, { styleFile });
     incrementalFuture.onComplete(
       created => {
         if (cancelled) {
-          created.destroy();
+          closeMapController(created);
           return;
         }
-        withControllerMap(created, map => {
-          map.appearance = mapAppearance;
-          map.graphicsPreset = graphicsPreset;
-          for (const source of makeSources(context, sourceWorkingMode)) {
-            incrementalSources.push(source);
-            map.addSource(source);
-          }
-          const camera = map.camera;
-          try {
-            camera.position = POSITION;
-          } finally {
-            destroyIfPresent(camera);
-          }
-          map.fontIconSizeMultiplier = FONT_ICON_SIZE_MULTIPLIER;
-        });
+        const map = created.map;
+        map.appearance = mapAppearance;
+        map.graphicsPreset = graphicsPreset;
+        for (const source of makeSources(context, sourceWorkingMode)) {
+          map.addSource(source);
+        }
+        map.camera.position = POSITION;
+        map.fontIconSizeMultiplier = FONT_ICON_SIZE_MULTIPLIER;
         // maxFps / powerSavingMaxFps: construction-only, no live setter.
         incrementalCtrl = created;
         setIncrementalController(created);
@@ -156,12 +121,14 @@ export function TwoMapsDemo() {
 
     return () => {
       cancelled = true;
-      optionsFuture.destroy();
-      incrementalFuture.destroy();
-      optionsCtrl?.destroy();
-      incrementalCtrl?.destroy();
-      destroyAll(optionsSources);
-      destroyAll(incrementalSources);
+      optionsFuture.cancel();
+      incrementalFuture.cancel();
+      if (optionsCtrl) {
+        closeMapController(optionsCtrl);
+      }
+      if (incrementalCtrl) {
+        closeMapController(incrementalCtrl);
+      }
     };
   }, [context, graphicsPreset, mapAppearance, sourceWorkingMode, styleFile]);
 

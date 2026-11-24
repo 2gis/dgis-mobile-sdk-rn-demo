@@ -4,7 +4,7 @@ Demo app for [`@2gis/dgis-mobile-sdk-full`](https://www.npmjs.com/package/@2gis/
 the full flavor of the 2GIS Mobile SDK for React Native (map, navigation,
 offline territories and custom styles).
 
-- React Native 0.85 (New Architecture), React 19
+- React Native 0.88 (New Architecture), React 19
 - Android minSdk 24, iOS 16.0
 - SDK docs: https://docs.2gis.com/react-native/sdk/overview
 

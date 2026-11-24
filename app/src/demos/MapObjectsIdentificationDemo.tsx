@@ -1,32 +1,26 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { StyleSheet, Switch, Text, TouchableOpacity, View } from 'react-native';
 import {
-  Anchor,
   AttributeValue,
-  CameraPosition,
   Circle,
-  CircleOptions,
-  Color,
   DgisMapObject,
   FormattingType,
-  GeoPoint,
   ImageLoader,
-  LogicalPixel,
   MapObjectManager,
   MapView,
   Marker,
-  MarkerOptions,
-  Meter,
   RoadEventSource,
   SearchManager,
   SimpleMapObject,
-  Zoom,
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
-  Attributes,
   DirectoryObject,
-  Map as SdkMap,
-  MapController,
   MapRenderedObjectObserver,
   RenderedObjectInfo,
 } from '@2gis/dgis-mobile-sdk-full';
@@ -35,15 +29,8 @@ import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useChannelEffect } from '../hooks/useChannelEffect';
 import { useLatestFuture } from '../hooks/useLatestFuture';
-import { useNative } from '../hooks/useNative';
 import { ErrorBanner } from '../components/ErrorBanner';
 import { type DemoImageCache, loadPinMarkerImage } from './mapDemoAssets';
-import {
-  destroyCachedValue,
-  destroyResolvedCacheValues,
-  isNativeDestroyedError,
-  destroyIfPresent,
-} from './demoNativeCleanup';
 import {
   cardShadow,
   cardShadowElevated,
@@ -53,90 +40,42 @@ import {
   typography,
 } from '../theme/theme';
 
-const INITIAL_POSITION = new CameraPosition({
-  point: new GeoPoint({
-    latitude: { value: 55.75 },
-    longitude: { value: 37.62 },
-  }),
-  zoom: new Zoom({ value: 12 }),
-});
+const INITIAL_POSITION = {
+  point: {
+    latitude: 55.75,
+    longitude: 37.62,
+  },
+  zoom: 12,
+};
 
 // Stable overrides reference so useDefaultMapOptions memoizes — a fresh object literal
 // each render would rebuild the native MapControllerOptions and its sources.
 const MAP_OPTIONS_OVERRIDES = { position: INITIAL_POSITION };
 
-interface MapObjectManagerResources {
-  manager: MapObjectManager;
-  map: SdkMap;
-  destroy(): void;
-}
-
-function createMapObjectManagerResources(
-  controller: MapController,
-): MapObjectManagerResources {
-  const map = controller.map;
-  const manager = new MapObjectManager(map, null);
-
-  return {
-    manager,
-    map,
-    destroy() {
-      destroyIfPresent(manager);
-      destroyIfPresent(map);
-    },
-  };
-}
-
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
-
-function withMapAttributes<T>(
-  map: SdkMap,
-  action: (attributes: Attributes) => T,
-): T {
-  const attributes = map.attributes;
-  try {
-    return action(attributes);
-  } finally {
-    destroyIfPresent(attributes);
-  }
-}
-
 /** Test circle that demonstrates adding an object to the map. */
 function createTestCircle(): Circle {
-  return new Circle(
-    new CircleOptions({
-      position: new GeoPoint({
-        latitude: { value: 55.75 },
-        longitude: { value: 37.62 },
-      }),
-      radius: new Meter({ value: 1900 }),
-      color: new Color({ argb: 0x40ff0000 }),
-      strokeColor: new Color({ argb: 0xffff0000 }),
-      strokeWidth: new LogicalPixel({ value: 2 }),
-      userData: { type: 'circle' },
-    }),
-  );
+  return new Circle({
+    position: {
+      latitude: 55.75,
+      longitude: 37.62,
+    },
+    radius: 1900,
+    color: { argb: 0x40ff0000 },
+    strokeColor: { argb: 0xffff0000 },
+    strokeWidth: 2,
+    userData: { type: 'circle' },
+  });
 }
 
 // Use a structural type, not GeoPoint: the formatter needs only latitude and
 // longitude, so it accepts both GeoPoint and GeoPointWithElevation (closestMapPoint).
 /** Formats a geo point as "(latitude, longitude)" with 6 decimal places. */
 function formatGeoPoint(point: {
-  latitude: { value: number };
-  longitude: { value: number };
+  latitude: number;
+  longitude: number;
 }): string {
-  const lat = point.latitude.value.toFixed(6);
-  const lon = point.longitude.value.toFixed(6);
+  const lat = point.latitude.toFixed(6);
+  const lon = point.longitude.toFixed(6);
   return `(${lat}, ${lon})`;
 }
 
@@ -155,7 +94,7 @@ function formatRenderedObjectInfo(info: RenderedObjectInfo): string {
       1,
     )})`,
     `ClosestMapPoint: ${formatGeoPoint(info.closestMapPoint)}`,
-    `LevelId: ${String(info.item.levelId?.value ?? null)}`,
+    `LevelId: ${String(info.item.levelId ?? null)}`,
   ];
 
   if (object instanceof DgisMapObject) {
@@ -164,7 +103,7 @@ function formatRenderedObjectInfo(info: RenderedObjectInfo): string {
 
   if (object instanceof SimpleMapObject) {
     lines.push(`UserData: ${JSON.stringify(object.userData)}`);
-    lines.push(`zIndex: ${object.zIndex.value}`);
+    lines.push(`zIndex: ${object.zIndex}`);
     lines.push(`Bounds NE: ${formatGeoPoint(object.bounds.northEastPoint)}`);
     lines.push(`Bounds SW: ${formatGeoPoint(object.bounds.southWestPoint)}`);
   }
@@ -238,12 +177,8 @@ function useObjectIdentification(
     }
   };
 
-  useChannelEffect(() => renderedObjectObserver?.objectTapped, identify, [
-    renderedObjectObserver,
-  ]);
-  useChannelEffect(() => renderedObjectObserver?.objectLongTouched, identify, [
-    renderedObjectObserver,
-  ]);
+  useChannelEffect(() => renderedObjectObserver?.objectTapped, identify);
+  useChannelEffect(() => renderedObjectObserver?.objectLongTouched, identify);
 
   return info;
 }
@@ -267,26 +202,22 @@ export function MapObjectsIdentificationDemo() {
     imageLoaderRef.current = new ImageLoader(context);
   }
 
-  const searchManager = useNative(
+  const searchManager = useMemo(
     () => SearchManager.createSmartManager(context),
     [context],
   );
   const [showInfo, setShowInfo] = useState(true);
-  const managerResources = useNative<MapObjectManagerResources>(
+  const manager = useMemo(
     () =>
-      mapController ? createMapObjectManagerResources(mapController) : null,
+      mapController ? new MapObjectManager(mapController.map, null) : null,
     [mapController],
   );
-  const manager = managerResources?.manager ?? null;
-  const renderedObjectObserver = useNative<MapRenderedObjectObserver>(
-    () => mapController?.renderedObjectObserver ?? null,
-    [mapController],
-  );
-  const roadEventSource = useNative(
+  const renderedObjectObserver = mapController?.renderedObjectObserver ?? null;
+  const roadEventSource = useMemo(
     () => new RoadEventSource(context),
     [context],
   );
-  const circle = useNative(createTestCircle, []);
+  const circle = useMemo(createTestCircle, []);
 
   const [isParkingEnabled, setIsParkingEnabled] = useState(false);
   const [isTugcEnabled, setIsTugcEnabled] = useState(false);
@@ -300,15 +231,7 @@ export function MapObjectsIdentificationDemo() {
       return;
     }
 
-    try {
-      manager.removeObjects([marker]);
-    } catch (error) {
-      if (!isNativeDestroyedError(error)) {
-        throw error;
-      }
-    }
-
-    destroyIfPresent(marker);
+    manager.removeObjects([marker]);
     selectedMarkerRef.current = null;
   }, [manager]);
 
@@ -343,7 +266,6 @@ export function MapObjectsIdentificationDemo() {
           );
 
           if (requestVersion !== selectionVersionRef.current || !manager) {
-            destroyCachedValue(imageCacheRef.current, icon);
             return;
           }
 
@@ -352,14 +274,12 @@ export function MapObjectsIdentificationDemo() {
             return;
           }
 
-          const marker = new Marker(
-            new MarkerOptions({
-              icon,
-              position: rendered.closestMapPoint,
-              anchor: new Anchor({ y: 1 }),
-              iconWidth: new LogicalPixel({ value: 5 }),
-            }),
-          );
+          const marker = new Marker({
+            icon,
+            position: rendered.closestMapPoint,
+            anchor: { y: 1 },
+            iconWidth: 5,
+          });
           selectedMarkerRef.current = marker;
           manager.addObject(marker);
         } catch (error) {
@@ -372,12 +292,10 @@ export function MapObjectsIdentificationDemo() {
 
   useEffect(() => {
     selectionVersionRef.current += 1;
-    const imageCache = imageCacheRef.current;
 
     return () => {
       selectionVersionRef.current += 1;
       removeSelectedMarker();
-      destroyResolvedCacheValues(imageCache);
     };
   }, [removeSelectedMarker]);
 
@@ -395,11 +313,9 @@ export function MapObjectsIdentificationDemo() {
     }
     try {
       if (value) {
-        withControllerMap(mapController, map => map.addSource(roadEventSource));
+        mapController.map.addSource(roadEventSource);
       } else {
-        withControllerMap(mapController, map =>
-          map.removeSource(roadEventSource),
-        );
+        mapController.map.removeSource(roadEventSource);
       }
       setIsTugcEnabled(value);
       setToggleError(null);
@@ -413,13 +329,9 @@ export function MapObjectsIdentificationDemo() {
       return;
     }
     try {
-      withControllerMap(mapController, map =>
-        withMapAttributes(map, attributes =>
-          attributes.setAttributeValue(
-            'parkingOn',
-            AttributeValue.boolean(value),
-          ),
-        ),
+      mapController.map.attributes.setAttributeValue(
+        'parkingOn',
+        AttributeValue.boolean(value),
       );
       setIsParkingEnabled(value);
       setToggleError(null);

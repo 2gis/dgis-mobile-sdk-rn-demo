@@ -1,14 +1,4 @@
-import {
-  Bearing,
-  Duration,
-  GeoPoint,
-  Latitude,
-  Location,
-  LocationCoordinates,
-  LocationCourse,
-  Longitude,
-  PlatformHeading,
-} from '@2gis/dgis-mobile-sdk-full';
+import { Duration, Location, LocationCourse } from '@2gis/dgis-mobile-sdk-full';
 import type {
   DesiredAccuracy,
   HeadingAvailableNotifier,
@@ -99,20 +89,20 @@ function makeCustomLocation(
   routePoint: (typeof customLocationRoute)[number],
   timestampMs: number,
 ): Location {
-  return new Location({
-    coordinates: new LocationCoordinates({
-      value: new GeoPoint({
-        latitude: new Latitude({ value: routePoint.latitude }),
-        longitude: new Longitude({ value: routePoint.longitude }),
-      }),
+  return {
+    coordinates: {
+      value: {
+        latitude: routePoint.latitude,
+        longitude: routePoint.longitude,
+      },
       accuracy: routePoint.accuracy,
-    }),
+    },
     altitude: null,
     course: createLocationCourse(routePoint.course),
     groundSpeed: null,
     source: 'custom-location-provider',
     timestamp: Duration.ofMilliseconds(timestampMs),
-  });
+  };
 }
 
 export function createCustomHeadingProvider(): DisposableHeadingProvider {
@@ -128,12 +118,10 @@ export function createCustomHeadingProvider(): DisposableHeadingProvider {
   };
 
   const sendHeading = (degrees: number, seconds: number) => {
-    headingNotifier?.send(
-      new PlatformHeading({
-        heading: createLocationCourse(degrees),
-        timestamp: Duration.ofSeconds(seconds),
-      }),
-    );
+    headingNotifier?.send({
+      heading: createLocationCourse(degrees),
+      timestamp: Duration.ofSeconds(seconds),
+    });
   };
 
   return {
@@ -167,8 +155,8 @@ export function createCustomHeadingProvider(): DisposableHeadingProvider {
 }
 
 function createLocationCourse(degrees: number): LocationCourse {
-  return new LocationCourse({
-    value: new Bearing({ value: degrees }),
-    accuracy: new Bearing({ value: 5 }),
-  });
+  return {
+    value: degrees,
+    accuracy: 5,
+  };
 }

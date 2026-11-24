@@ -1,13 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
-  Bearing,
   CameraFollowState,
+  closeControlModel,
   CompassControlModel,
   IndoorControlModel,
   MapView,
   MyLocationControlModel,
-  MyLocationControllerSettings,
   MyLocationMapObjectMarkerType,
   MyLocationMapObjectSource,
   TrafficControlModel,
@@ -17,18 +16,12 @@ import {
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
   LocationQuality,
-  Map as SdkMap,
   MapController,
   TrafficControlState,
 } from '@2gis/dgis-mobile-sdk-full';
 
 import { useSdk } from '../sdk/useSdk';
 import { useChannelValue } from '../hooks/useChannelValue';
-import {
-  destroyIfPresent,
-  isNativeDestroyedError,
-} from '../hooks/nativeObjectLifecycle';
-import { useNative } from '../hooks/useNative';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useInitializeLocationService } from '../hooks/useInitializeLocationService';
@@ -58,13 +51,11 @@ function followStateLabel(state: CameraFollowState): string {
 }
 
 interface ControlModelResources {
-  map: SdkMap;
   zoomModel: ZoomControlModel;
   compassModel: CompassControlModel;
   myLocationModel: MyLocationControlModel;
   trafficModel: TrafficControlModel;
   indoorModel: IndoorControlModel;
-  destroy(): void;
 }
 
 function createControlModelResources(
@@ -78,20 +69,11 @@ function createControlModelResources(
   const indoorModel = new IndoorControlModel(map);
 
   return {
-    map,
     zoomModel,
     compassModel,
     myLocationModel,
     trafficModel,
     indoorModel,
-    destroy() {
-      destroyIfPresent(indoorModel);
-      destroyIfPresent(trafficModel);
-      destroyIfPresent(myLocationModel);
-      destroyIfPresent(compassModel);
-      destroyIfPresent(zoomModel);
-      destroyIfPresent(map);
-    },
   };
 }
 
@@ -105,21 +87,30 @@ export function AllMapControlsDemo() {
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
 
-  const controlResources = useNative<ControlModelResources>(
-    () => (mapController ? createControlModelResources(mapController) : null),
-    [mapController],
-  );
-  const map = controlResources?.map ?? null;
+  const [controlResources, setControlResources] =
+    useState<ControlModelResources | null>(null);
+  useEffect(() => {
+    if (!mapController) {
+      return;
+    }
+    const resources = createControlModelResources(mapController);
+    setControlResources(resources);
+    return () => {
+      setControlResources(null);
+      Object.values(resources).forEach(closeControlModel);
+    };
+  }, [mapController]);
+  const map = mapController?.map ?? null;
   const zoomModel = controlResources?.zoomModel ?? null;
   const compassModel = controlResources?.compassModel ?? null;
   const myLocationModel = controlResources?.myLocationModel ?? null;
   const trafficModel = controlResources?.trafficModel ?? null;
   const indoorModel = controlResources?.indoorModel ?? null;
-  const myLocationSource = useNative<MyLocationMapObjectSource>(
+  const myLocationSource = useMemo<MyLocationMapObjectSource | null>(
     () =>
       new MyLocationMapObjectSource(
         context,
-        new MyLocationControllerSettings({}),
+        {},
         MyLocationMapObjectMarkerType.Model,
       ),
     [context],
@@ -128,47 +119,35 @@ export function AllMapControlsDemo() {
   const zoomInEnabled = useChannelValue(
     () => zoomModel?.isEnabled(ZoomControlButton.ZoomIn),
     true,
-    [zoomModel],
   );
   const zoomOutEnabled = useChannelValue(
     () => zoomModel?.isEnabled(ZoomControlButton.ZoomOut),
     true,
-    [zoomModel],
   );
-  const compassBearing = useChannelValue(
-    () => compassModel?.bearingChannel,
-    new Bearing({ value: 0 }),
-    [compassModel],
-  ).value;
+  const compassBearing = useChannelValue(() => compassModel?.bearingChannel, 0);
   const myLocationEnabled = useChannelValue(
     () => myLocationModel?.isEnabledChannel,
     false,
-    [myLocationModel],
   );
   const followState = useChannelValue(
     () => myLocationModel?.followStateChannel,
     CameraFollowState.Off,
-    [myLocationModel],
   );
   const locationQuality = useChannelValue<LocationQuality | null>(
     () => myLocationModel?.locationQualityChannel,
     null,
-    [myLocationModel],
   );
   const trafficState = useChannelValue<TrafficControlState | null>(
     () => trafficModel?.stateChannel,
     null,
-    [trafficModel],
   );
   const levelNames = useChannelValue<string[]>(
     () => indoorModel?.levelNamesChannel,
     [],
-    [indoorModel],
   );
   const activeLevelIndex = useChannelValue<bigint | null>(
     () => indoorModel?.activeLevelIndexChannel,
     null,
-    [indoorModel],
   );
 
   useEffect(() => {
@@ -179,13 +158,7 @@ export function AllMapControlsDemo() {
     map.addSource(myLocationSource);
 
     return () => {
-      try {
-        map.removeSource(myLocationSource);
-      } catch (error) {
-        if (!isNativeDestroyedError(error)) {
-          throw error;
-        }
-      }
+      map.removeSource(myLocationSource);
     };
   }, [map, myLocationSource]);
 

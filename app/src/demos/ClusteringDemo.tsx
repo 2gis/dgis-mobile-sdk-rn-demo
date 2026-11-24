@@ -10,24 +10,17 @@ import {
   View,
 } from 'react-native';
 import {
-  LogicalPixel,
   MapDataLoadingState,
   MapObjectManager,
   MapView,
   Marker,
-  MarkerOptions,
-  ScreenPoint,
-  SimpleClusterOptions,
-  Zoom,
-  GeoPointWithElevation,
-  ZIndex,
+  SimpleClusterOptionsInit,
+  GeoPointWithElevationInit,
   ImageLoader,
 } from '@2gis/dgis-mobile-sdk-full';
 import type {
-  Camera as SdkCamera,
   Image as SdkImage,
   Map as SdkMap,
-  Projection as SdkProjection,
   SimpleClusterObject,
   SimpleClusterRenderer,
 } from '@2gis/dgis-mobile-sdk-full';
@@ -41,14 +34,6 @@ import {
   loadClusterMarkerImage,
   loadDemoMarkerImage,
 } from './mapDemoAssets';
-import {
-  destroyAll,
-  destroyCachedValue,
-  destroyResolvedCacheValues,
-  destroyIfPresent,
-  ignoreNativeDestroyedError,
-  isNativeDestroyedError,
-} from './demoNativeCleanup';
 import {
   cardShadow,
   colors,
@@ -71,7 +56,7 @@ class SimpleClusterRendererImpl implements SimpleClusterRenderer {
 
   constructor(private readonly imageHolder: ClusterImageHolder) {}
 
-  renderCluster = (cluster: SimpleClusterObject): SimpleClusterOptions => {
+  renderCluster = (cluster: SimpleClusterObject): SimpleClusterOptionsInit => {
     const count = cluster.objectCount;
     const image = this.imageHolder.image;
     this.clusterIndex += 1;
@@ -79,18 +64,14 @@ class SimpleClusterRendererImpl implements SimpleClusterRenderer {
     const baseSize = 30;
     const iconSize = Math.min(baseSize * (1 + count / 50), 100);
 
-    return new SimpleClusterOptions({
+    return {
       icon: image,
-      iconWidth: new LogicalPixel({ value: iconSize }),
+      iconWidth: iconSize,
       text: String(count),
-      zIndex: new ZIndex({ value: 1 }),
+      zIndex: 1,
       userData: { clusterIdx: this.clusterIndex },
-    });
+    };
   };
-}
-
-function destroyMarkers(markers: Marker[]): void {
-  destroyAll(markers);
 }
 
 function isResourcesResetError(error: unknown): boolean {
@@ -101,35 +82,10 @@ function isResourcesResetError(error: unknown): boolean {
 }
 
 function showAsyncError(title: string, error: unknown): void {
-  if (!isNativeDestroyedError(error)) {
-    Alert.alert(title, String(error));
-  }
+  Alert.alert(title, String(error));
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function withCamera<T>(sdkMap: SdkMap, action: (camera: SdkCamera) => T): T {
-  const camera = sdkMap.camera;
-  try {
-    return action(camera);
-  } finally {
-    destroyIfPresent(camera);
-  }
-}
-
-function withProjection<T>(
-  sdkMap: SdkMap,
-  action: (projection: SdkProjection) => T,
-): T {
-  return withCamera(sdkMap, camera => {
-    const projection = camera.projection;
-    try {
-      return action(projection);
-    } finally {
-      destroyIfPresent(projection);
-    }
-  });
-}
 
 interface PendingMapLoad {
   cancel: () => void;
@@ -137,14 +93,7 @@ interface PendingMapLoad {
 }
 
 function isMapDataLoaded(map: SdkMap): boolean {
-  try {
-    return map.dataLoadingState === MapDataLoadingState.Loaded;
-  } catch (error) {
-    if (isNativeDestroyedError(error)) {
-      return true;
-    }
-    throw error;
-  }
+  return map.dataLoadingState === MapDataLoadingState.Loaded;
 }
 
 function waitForMapDataLoaded(map: SdkMap): PendingMapLoad {
@@ -185,25 +134,25 @@ function waitForMapDataLoaded(map: SdkMap): PendingMapLoad {
   return { cancel: settle, promise };
 }
 
-function generateRandomPointNear(map: SdkMap): GeoPointWithElevation | null {
-  const size = withCamera(map, camera => camera.size);
+function generateRandomPointNear(
+  map: SdkMap,
+): GeoPointWithElevationInit | null {
+  const size = map.camera.size;
   const minY = size.height / 3;
   const maxY = size.height - size.height / 3;
 
-  const screenPt = new ScreenPoint({
+  const screenPt = {
     x: Math.random() * size.width,
     y: minY + Math.random() * (maxY - minY),
-  });
+  };
 
-  const mapPt = withProjection(map, projection =>
-    projection.screenToMap(screenPt),
-  );
+  const mapPt = map.camera.projection.screenToMap(screenPt);
   if (!mapPt) return null;
 
-  return new GeoPointWithElevation({
+  return {
     latitude: mapPt.latitude,
     longitude: mapPt.longitude,
-  });
+  };
 }
 
 // ── Main component ──────────────────────────────────────────────────────────
@@ -219,7 +168,6 @@ export function ClusteringDemo() {
   const imageLoaderRef = useRef<ImageLoader | null>(null);
   const lifecycleVersionRef = useRef(0);
 
-  const mapRef = useRef<SdkMap | null>(null);
   const managerRef = useRef<MapObjectManager | null>(null);
   const markersRef = useRef<Marker[]>([]);
   const markerCounterRef = useRef(0);
@@ -253,7 +201,6 @@ export function ClusteringDemo() {
     );
 
     if (requestVersion !== lifecycleVersionRef.current) {
-      destroyCachedValue(imageCacheRef.current, image);
       throw new Error('Clustering demo resources were reset during image load');
     }
 
@@ -265,24 +212,14 @@ export function ClusteringDemo() {
     return renderer;
   }, []);
 
-  const resetNativeResources = useCallback(() => {
+  const resetManager = useCallback(() => {
     lifecycleVersionRef.current += 1;
 
     managerRef.current?.removeAll();
 
-    destroyMarkers(markersRef.current);
-    destroyIfPresent(managerRef.current);
     managerRef.current = null;
 
     markersRef.current = [];
-    clusterRendererRef.current = null;
-    clusterImageHolderRef.current.image = null;
-    destroyResolvedCacheValues(imageCacheRef.current);
-    imageLoaderRef.current = null;
-    ignoreNativeDestroyedError(() => {
-      destroyIfPresent(mapRef.current);
-    });
-    mapRef.current = null;
   }, []);
 
   // Create / recreate MapObjectManager
@@ -292,8 +229,6 @@ export function ClusteringDemo() {
 
       if (managerRef.current) {
         managerRef.current.removeAll();
-        destroyMarkers(markersRef.current);
-        destroyIfPresent(managerRef.current);
         managerRef.current = null;
         markersRef.current = [];
       }
@@ -315,10 +250,10 @@ export function ClusteringDemo() {
 
           manager = MapObjectManager.withClustering(
             mapObj,
-            new LogicalPixel({ value: 80 }),
-            new Zoom({ value: maxZoom }),
+            80,
+            maxZoom,
             renderer,
-            new Zoom({ value: minZoom }),
+            minZoom,
             null,
           );
           break;
@@ -326,9 +261,9 @@ export function ClusteringDemo() {
         case 'generalization':
           manager = MapObjectManager.withGeneralization(
             mapObj,
-            new LogicalPixel({ value: 80 }),
-            new Zoom({ value: maxZoom }),
-            new Zoom({ value: minZoom }),
+            80,
+            maxZoom,
+            minZoom,
             null,
           );
           break;
@@ -351,7 +286,6 @@ export function ClusteringDemo() {
     let cancelled = false;
     let mapLoadWait: PendingMapLoad | null = null;
     const map = mapController.map;
-    mapRef.current = map;
 
     const initializeManager = async () => {
       mapLoadWait = waitForMapDataLoaded(map);
@@ -365,7 +299,6 @@ export function ClusteringDemo() {
       const manager = await createManager(grouping, map);
       if (cancelled) {
         manager.removeAll();
-        destroyIfPresent(manager);
         if (managerRef.current === manager) {
           managerRef.current = null;
         }
@@ -385,14 +318,14 @@ export function ClusteringDemo() {
     return () => {
       cancelled = true;
       mapLoadWait?.cancel();
-      resetNativeResources();
+      resetManager();
     };
-  }, [mapController, grouping, createManager, resetNativeResources]);
+  }, [mapController, grouping, createManager, resetManager]);
 
   // Add markers
   const addMarkers = useCallback(
     async (count: number) => {
-      const map = mapRef.current;
+      const map = mapController?.map;
       if (!map || !managerRef.current) return;
 
       const requestVersion = lifecycleVersionRef.current;
@@ -415,7 +348,6 @@ export function ClusteringDemo() {
         requestVersion !== lifecycleVersionRef.current ||
         !managerRef.current
       ) {
-        destroyCachedValue(imageCacheRef.current, icon);
         return;
       }
 
@@ -425,15 +357,13 @@ export function ClusteringDemo() {
         if (!pos) continue;
 
         const id = markerCounterRef.current++;
-        const marker = new Marker(
-          new MarkerOptions({
-            position: pos,
-            icon,
-            iconWidth: new LogicalPixel({ value: 30 }),
-            text: `#${id}`,
-            userData: { id },
-          }),
-        );
+        const marker = new Marker({
+          position: pos,
+          icon,
+          iconWidth: 30,
+          text: `#${id}`,
+          userData: { id },
+        });
         newMarkers.push(marker);
         markersRef.current.push(marker);
       }
@@ -442,7 +372,6 @@ export function ClusteringDemo() {
         requestVersion !== lifecycleVersionRef.current ||
         !managerRef.current
       ) {
-        destroyMarkers(newMarkers);
         markersRef.current = markersRef.current.filter(
           marker => !newMarkers.includes(marker),
         );
@@ -452,7 +381,7 @@ export function ClusteringDemo() {
       managerRef.current.addObjects(newMarkers);
       setInfoText(`Objects: ${markersRef.current.length}`);
     },
-    [markerType],
+    [mapController, markerType],
   );
 
   // Remove markers
@@ -462,7 +391,6 @@ export function ClusteringDemo() {
     const removeCount = Math.min(count, markersRef.current.length);
     const toRemove = markersRef.current.splice(0, removeCount);
     managerRef.current.removeObjects(toRemove);
-    destroyMarkers(toRemove);
 
     setInfoText(`Objects: ${markersRef.current.length}`);
   }, []);
@@ -476,7 +404,6 @@ export function ClusteringDemo() {
       if (removeCount > 0) {
         const toRemove = markersRef.current.splice(0, removeCount);
         managerRef.current.removeObjects(toRemove);
-        destroyMarkers(toRemove);
       }
 
       addMarkers(count).catch(error => {
@@ -489,7 +416,6 @@ export function ClusteringDemo() {
   // Remove all
   const removeAll = useCallback(() => {
     managerRef.current?.removeAll();
-    destroyMarkers(markersRef.current);
     markersRef.current = [];
     markerCounterRef.current = 0;
     setInfoText('Objects: 0');
@@ -600,7 +526,7 @@ function ActionSheet({
   onClose: () => void;
 }) {
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
@@ -679,7 +605,7 @@ function SettingsDialog({
   };
 
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>Settings</Text>

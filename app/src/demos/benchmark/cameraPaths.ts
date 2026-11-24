@@ -1,11 +1,7 @@
 import {
-  Bearing,
   CameraAnimationType,
   CameraPosition,
   Duration,
-  GeoPoint,
-  Tilt,
-  Zoom,
 } from '@2gis/dgis-mobile-sdk-full';
 
 export interface CameraStep {
@@ -32,15 +28,15 @@ function step(
   seconds: number,
 ): CameraStep {
   return {
-    position: new CameraPosition({
-      point: new GeoPoint({
-        latitude: { value: lat },
-        longitude: { value: lon },
-      }),
-      zoom: new Zoom({ value: zoom }),
-      tilt: new Tilt({ value: tilt }),
-      bearing: new Bearing({ value: bearing }),
-    }),
+    position: {
+      point: {
+        latitude: lat,
+        longitude: lon,
+      },
+      zoom: zoom,
+      tilt: tilt,
+      bearing: bearing,
+    },
     duration: Duration.ofSeconds(seconds),
     animationType: CameraAnimationType.Linear,
   };

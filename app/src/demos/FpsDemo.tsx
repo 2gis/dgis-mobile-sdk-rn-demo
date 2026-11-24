@@ -7,28 +7,13 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {
-  CameraPosition,
-  Duration,
-  Fps,
-  GeoPoint,
-  MapView,
-  Zoom,
-} from '@2gis/dgis-mobile-sdk-full';
-import type {
-  Camera as SdkCamera,
-  CameraMoveController,
-  Map as SdkMap,
-  MapController,
-  MapRenderer,
-} from '@2gis/dgis-mobile-sdk-full';
+import { CameraPosition, Duration, MapView } from '@2gis/dgis-mobile-sdk-full';
+import type { CameraMoveController } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 import { useChannelValue } from '../hooks/useChannelValue';
 import { useLatestFuture } from '../hooks/useLatestFuture';
-import { useNative } from '../hooks/useNative';
-import { destroyIfPresent } from '../hooks/nativeObjectLifecycle';
 import {
   cardShadow,
   colors,
@@ -42,41 +27,13 @@ import {
  * useChannelValue; provides inputs to adjust max FPS and power-saving max FPS;
  * a toggle starts/stops continuous camera oscillation to generate load.
  */
-function withControllerMap<T>(
-  controller: MapController,
-  action: (map: SdkMap) => T,
-): T {
-  const map = controller.map;
-  try {
-    return action(map);
-  } finally {
-    destroyIfPresent(map);
-  }
-}
-
-function withMapCamera<T>(map: SdkMap, action: (camera: SdkCamera) => T): T {
-  const camera = map.camera;
-  try {
-    return action(camera);
-  } finally {
-    destroyIfPresent(camera);
-  }
-}
-
 export function FpsDemo() {
   const context = useSdk();
   const options = useDefaultMapOptions(context);
   const { controllerState, mapController } = useMapController(context, options);
-  const renderer = useNative<MapRenderer>(
-    () => mapController?.renderer ?? null,
-    [mapController],
-  );
+  const renderer = mapController?.renderer ?? null;
 
-  const currentFps = useChannelValue(
-    () => renderer?.fpsChannel,
-    new Fps({ value: 0 }),
-    [renderer],
-  );
+  const currentFps = useChannelValue(() => renderer?.fpsChannel, 0);
 
   const [isAnimating, setIsAnimating] = useState(false);
   const [maxFpsText, setMaxFpsText] = useState('');
@@ -88,8 +45,8 @@ export function FpsDemo() {
       return;
     }
 
-    const initialMaxFps = renderer.maxFps?.value;
-    const initialPsMaxFps = renderer.powerSavingMaxFps?.value;
+    const initialMaxFps = renderer.maxFps;
+    const initialPsMaxFps = renderer.powerSavingMaxFps;
 
     if (initialMaxFps != null) {
       setMaxFpsText(current =>
@@ -108,7 +65,7 @@ export function FpsDemo() {
     if (!renderer) return;
     const parsed = parseInt(maxFpsText, 10);
     if (isNaN(parsed)) return;
-    renderer.setMaxFps(new Fps({ value: parsed }), renderer.powerSavingMaxFps);
+    renderer.setMaxFps(parsed, renderer.powerSavingMaxFps);
   };
 
   const applyPsMaxFps = () => {
@@ -116,39 +73,34 @@ export function FpsDemo() {
     if (!renderer) return;
     const parsed = parseInt(psMaxFpsText, 10);
     if (isNaN(parsed)) return;
-    renderer.setMaxFps(renderer.maxFps, new Fps({ value: parsed }));
+    renderer.setMaxFps(renderer.maxFps, parsed);
   };
 
   const toggleAnimation = () => {
     if (!mapController) return;
 
     if (!isAnimating) {
-      const initialPosition = withControllerMap(mapController, map =>
-        withMapCamera(map, camera => camera.position),
-      );
+      const initialPosition = mapController.map.camera.position;
       const moveController: CameraMoveController = {
         position(time: Duration): CameraPosition {
           const offset = Math.sin(time.milliseconds * 0.001);
-          return new CameraPosition({
-            point: new GeoPoint({
+          return {
+            point: {
               latitude: initialPosition.point.latitude,
               longitude: initialPosition.point.longitude,
-            }),
-            zoom: new Zoom({
-              value: Math.max(0, initialPosition.zoom.value + offset),
-            }),
+            },
+            zoom: Math.max(0, initialPosition.zoom + offset),
             tilt: initialPosition.tilt,
             bearing: initialPosition.bearing,
-          });
+          };
         },
         animationTime(): Duration {
           return Duration.ofSeconds(100);
         },
       };
 
-      const future = withControllerMap(mapController, map =>
-        withMapCamera(map, camera => camera.moveWithController(moveController)),
-      );
+      const future =
+        mapController.map.camera.moveWithController(moveController);
       runFuture(
         future,
         () => setIsAnimating(false),
@@ -156,9 +108,7 @@ export function FpsDemo() {
       );
       setIsAnimating(true);
     } else {
-      withControllerMap(mapController, map => {
-        withMapCamera(map, camera => camera.processMovementAndStop());
-      });
+      mapController.map.camera.processMovementAndStop();
       setIsAnimating(false);
     }
   };
@@ -202,7 +152,7 @@ export function FpsDemo() {
         onPress={toggleAnimation}
         style={[styles.fpsButton, isAnimating && styles.fpsButtonActive]}
       >
-        <Text style={styles.fpsButtonText}>FPS: {currentFps.value}</Text>
+        <Text style={styles.fpsButtonText}>FPS: {currentFps}</Text>
       </TouchableOpacity>
     </View>
   );

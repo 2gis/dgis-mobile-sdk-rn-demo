@@ -84,12 +84,12 @@ export function createHttpOptionsFromSettings(
 ): HttpOptions {
   const normalized = normalizeHttpOptionsSettings(settings);
 
-  return new HttpOptions({
+  return {
     timeout: Duration.ofMilliseconds(Number(normalized.timeoutMs)),
     useCache: normalized.useCache,
     cacheStoragePath: normalized.cacheStoragePath || null,
     cacheMaxSize: normalized.cacheMaxSizeBytes
       ? BigInt(normalized.cacheMaxSizeBytes)
       : null,
-  });
+  };
 }

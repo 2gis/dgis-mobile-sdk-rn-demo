@@ -1,17 +1,17 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { CameraPosition, GeoPoint, MapView } from '@2gis/dgis-mobile-sdk-full';
+import { MapView } from '@2gis/dgis-mobile-sdk-full';
 import { useSdk } from '../sdk/useSdk';
 import { useDefaultMapOptions } from '../hooks/useDefaultMapOptions';
 import { useMapController } from '../hooks/useMapController';
 
-const INITIAL_POSITION = new CameraPosition({
-  point: new GeoPoint({
-    latitude: { value: 55.752474 },
-    longitude: { value: 37.668906 },
-  }),
-  zoom: { value: 11 },
-});
+const INITIAL_POSITION = {
+  point: {
+    latitude: 55.752474,
+    longitude: 37.668906,
+  },
+  zoom: 11,
+};
 
 // Stable overrides reference so useDefaultMapOptions memoizes — a fresh object
 // literal each render would recreate the options and, through useMapController,

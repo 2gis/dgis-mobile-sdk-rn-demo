@@ -1,15 +1,13 @@
 import {
-  BySystem,
   DgisSourceWorkingMode,
   File as SdkFile,
-  Fixed,
   GraphicsPreset,
   MapAppearance,
   MapAppearanceKind,
   MapTheme,
   copyAppAssetToFile,
 } from '@2gis/dgis-mobile-sdk-full';
-import type { Color } from '@2gis/dgis-mobile-sdk-full';
+import type { ColorInit } from '@2gis/dgis-mobile-sdk-full';
 import type { ColorSchemeName } from 'react-native';
 
 import { isObjectRecord } from './utils';
@@ -113,18 +111,16 @@ export function createMapAppearanceFromSettings(
 }
 
 export function createMapAppearance(mode: MapThemeMode): MapAppearance {
-  const lightTheme = MapTheme.defaultTheme;
-  const darkTheme = MapTheme.defaultDarkTheme;
+  const lightTheme = MapTheme.defaultTheme();
+  const darkTheme = MapTheme.defaultDarkTheme();
 
   switch (mode) {
     case 'system':
-      return MapAppearance.bySystem(
-        new BySystem({ light: lightTheme, dark: darkTheme }),
-      );
+      return MapAppearance.bySystem({ light: lightTheme, dark: darkTheme });
     case 'light':
-      return MapAppearance.fixed(new Fixed({ theme: lightTheme }));
+      return MapAppearance.fixed({ theme: lightTheme });
     case 'dark':
-      return MapAppearance.fixed(new Fixed({ theme: darkTheme }));
+      return MapAppearance.fixed({ theme: darkTheme });
   }
 }
 
@@ -174,8 +170,8 @@ export async function resolveMapStyleFilePath(path: string): Promise<string> {
 
 export function getMapAppearanceLoadingBackground(
   mapAppearance: MapAppearance,
-  colorScheme: ColorSchemeName,
-): Color {
+  colorScheme: ColorSchemeName | null,
+): ColorInit {
   switch (mapAppearance.kind) {
     case MapAppearanceKind.BySystem:
       return colorScheme === 'dark'

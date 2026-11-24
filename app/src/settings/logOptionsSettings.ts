@@ -134,11 +134,11 @@ export function createLogOptionsFromSettings(
 ): LogOptions {
   const normalized = normalizeLogOptionsSettings(settings);
 
-  return new LogOptions({
+  return {
     systemLevel: normalized.systemLevel,
     customLevel: normalized.customLevel,
     customSink: normalized.useCustom ? customLogSink : null,
-  });
+  };
 }
 
 function isLogLevel(value: unknown): value is LogLevel {

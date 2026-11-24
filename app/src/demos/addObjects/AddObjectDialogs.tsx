@@ -390,7 +390,7 @@ function DialogShell({
   children: React.ReactNode;
 }) {
   return (
-    <Modal transparent animationType="fade">
+    <Modal transparent animationType="fade" onRequestClose={onCancel}>
       <View style={styles.overlay}>
         <View style={styles.dialog}>
           <Text style={styles.dialogTitle}>{title}</Text>
